@@ -178,6 +178,14 @@ type ExpenseResponse struct {
 
 // Summary DTOs
 
+type SettlementTransfer struct {
+	FromUserID   string `json:"from_user_id"`
+	FromUserName string `json:"from_user_name"`
+	ToUserID     string `json:"to_user_id"`
+	ToUserName   string `json:"to_user_name"`
+	AmountCents  int64  `json:"amount_cents"`
+}
+
 type SummaryItemResponse struct {
 	UserID             string  `json:"user_id"`
 	UserName           string  `json:"user_name"`
@@ -186,6 +194,8 @@ type SummaryItemResponse struct {
 	TotalSharedCents   int64   `json:"total_shared_cents"`
 	TotalPersonalCents int64   `json:"total_personal_cents"`
 	AmountDueCents     int64   `json:"amount_due_cents"`
+	TotalPaidCents     int64   `json:"total_paid_cents"`
+	BalanceCents       int64   `json:"balance_cents"`
 }
 
 type SummaryResponse struct {
@@ -197,6 +207,7 @@ type SummaryResponse struct {
 	TotalAllCents    int64                 `json:"total_all_cents"`
 	GeneratedAt      string                `json:"generated_at"`
 	Items            []SummaryItemResponse `json:"items"`
+	Settlements      []SettlementTransfer  `json:"settlements"`
 }
 
 type DashboardResponse struct {

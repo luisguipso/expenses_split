@@ -8,6 +8,16 @@ export interface SummaryItem {
   total_shared_cents: number;
   total_personal_cents: number;
   amount_due_cents: number;
+  total_paid_cents: number;
+  balance_cents: number;
+}
+
+export interface SettlementTransfer {
+  from_user_id: string;
+  from_user_name: string;
+  to_user_id: string;
+  to_user_name: string;
+  amount_cents: number;
 }
 
 export interface SummaryResponse {
@@ -19,6 +29,7 @@ export interface SummaryResponse {
   total_all_cents: number;
   generated_at: string;
   items: SummaryItem[];
+  settlements: SettlementTransfer[];
 }
 
 export interface DashboardResponse {

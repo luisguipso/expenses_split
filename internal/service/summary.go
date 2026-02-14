@@ -53,6 +53,8 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 			TotalSharedCents:   b.TotalSharedCents,
 			TotalPersonalCents: b.TotalPersonalCents,
 			AmountDueCents:     b.AmountDueCents,
+			TotalPaidCents:     b.TotalPaidCents,
+			BalanceCents:       b.BalanceCents,
 		})
 	}
 	if err := s.summaryRepo.Upsert(ctx, summary); err != nil {

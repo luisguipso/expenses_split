@@ -19,4 +19,6 @@ type MonthlySummaryItem struct {
 	TotalSharedCents   int64  `json:"total_shared_cents"`
 	TotalPersonalCents int64  `json:"total_personal_cents"`
 	AmountDueCents     int64  `json:"amount_due_cents"`
+	TotalPaidCents     int64  `json:"total_paid_cents"`
+	BalanceCents       int64  `json:"balance_cents"`
 }

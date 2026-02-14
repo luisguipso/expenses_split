@@ -48,10 +48,10 @@ func (r *summaryRepository) Upsert(ctx context.Context, s *domain.MonthlySummary
 		item := &s.Items[i]
 		item.SummaryID = s.ID
 		err = tx.QueryRow(ctx,
-			`INSERT INTO monthly_summary_items (summary_id, user_id, total_shared_cents, total_personal_cents, amount_due_cents)
-			 VALUES ($1, $2, $3, $4, $5)
+			`INSERT INTO monthly_summary_items (summary_id, user_id, total_shared_cents, total_personal_cents, amount_due_cents, total_paid_cents, balance_cents)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
 			 RETURNING id`,
-			item.SummaryID, item.UserID, item.TotalSharedCents, item.TotalPersonalCents, item.AmountDueCents,
+			item.SummaryID, item.UserID, item.TotalSharedCents, item.TotalPersonalCents, item.AmountDueCents, item.TotalPaidCents, item.BalanceCents,
 		).Scan(&item.ID)
 		if err != nil {
 			return fmt.Errorf("insert item: %w", err)
@@ -78,7 +78,8 @@ func (r *summaryRepository) FindByMonth(ctx context.Context, householdID string,
 
 	rows, err := r.db.Query(ctx,
 		`SELECT si.id, si.summary_id, si.user_id, u.name,
-		        si.total_shared_cents, si.total_personal_cents, si.amount_due_cents
+		        si.total_shared_cents, si.total_personal_cents, si.amount_due_cents,
+		        si.total_paid_cents, si.balance_cents
 		 FROM monthly_summary_items si
 		 JOIN users u ON u.id = si.user_id
 		 WHERE si.summary_id = $1
@@ -94,6 +95,7 @@ func (r *summaryRepository) FindByMonth(ctx context.Context, householdID string,
 		if err := rows.Scan(
 			&item.ID, &item.SummaryID, &item.UserID, &item.UserName,
 			&item.TotalSharedCents, &item.TotalPersonalCents, &item.AmountDueCents,
+			&item.TotalPaidCents, &item.BalanceCents,
 		); err != nil {
 			return nil, fmt.Errorf("scan item: %w", err)
 		}
