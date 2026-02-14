@@ -1,4 +1,4 @@
-.PHONY: dev run build test migrate-up migrate-down docker-up docker-down web-dev web-build
+.PHONY: dev run build test test-integration migrate-up migrate-down docker-up docker-down web-dev web-build
 
 # Backend
 dev:
@@ -12,6 +12,10 @@ build:
 
 test:
 	go test ./... -v
+
+test-integration:
+	CONTAS_TEST_DATABASE_URL="postgres://contas:contas@localhost:5432/contas_test?sslmode=disable" \
+	go test ./internal/integration/ -v -count=1
 
 # Database
 docker-up:
