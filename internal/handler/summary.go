@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -79,6 +80,7 @@ func summaryError(err error) *echo.HTTPError {
 	case errors.Is(err, domain.ErrHouseholdNotFound):
 		return echo.NewHTTPError(http.StatusNotFound, "household not found")
 	default:
+		log.Printf("[ERROR] summary: %v", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
 }
