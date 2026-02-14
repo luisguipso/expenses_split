@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
@@ -230,3 +231,6 @@ func decodeJSON(t *testing.T, resp *http.Response, target interface{}) {
 		t.Fatalf("decode response: %v", err)
 	}
 }
+
+func currentYear() int  { return time.Now().Year() }
+func currentMonth() int { return int(time.Now().Month()) }
