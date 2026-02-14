@@ -7,7 +7,7 @@ import ErrorAlert from '../components/ErrorAlert';
 import { useNavigate } from 'react-router-dom';
 
 function formatCurrency(cents: number): string {
-  return (cents / 100).toLocaleString('pt-BR', {
+  return ((cents ?? 0) / 100).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
   });
@@ -155,8 +155,8 @@ export default function Dashboard() {
                 </div>
                 <div className="flex justify-between text-sm font-semibold">
                   <span className="text-gray-500">Saldo</span>
-                  <span className={item.balance_cents > 0 ? 'text-green-600' : item.balance_cents < 0 ? 'text-red-600' : 'text-gray-500'}>
-                    {item.balance_cents > 0 ? '↑ +' : item.balance_cents < 0 ? '↓ ' : ''}{formatCurrency(item.balance_cents)}
+                  <span className={(item.balance_cents ?? 0) > 0 ? 'text-green-600' : (item.balance_cents ?? 0) < 0 ? 'text-red-600' : 'text-gray-500'}>
+                    {(item.balance_cents ?? 0) > 0 ? '↑ +' : (item.balance_cents ?? 0) < 0 ? '↓ ' : ''}{formatCurrency(item.balance_cents)}
                   </span>
                 </div>
               </div>
@@ -204,8 +204,8 @@ export default function Dashboard() {
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-bold text-gray-900">
                     {formatCurrency(item.amount_due_cents)}
                   </td>
-                  <td className={`whitespace-nowrap px-6 py-4 text-right text-sm font-semibold ${item.balance_cents > 0 ? 'text-green-600' : item.balance_cents < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                    {item.balance_cents > 0 ? '↑ +' : item.balance_cents < 0 ? '↓ ' : ''}{formatCurrency(item.balance_cents)}
+                  <td className={`whitespace-nowrap px-6 py-4 text-right text-sm font-semibold ${(item.balance_cents ?? 0) > 0 ? 'text-green-600' : (item.balance_cents ?? 0) < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                    {(item.balance_cents ?? 0) > 0 ? '↑ +' : (item.balance_cents ?? 0) < 0 ? '↓ ' : ''}{formatCurrency(item.balance_cents)}
                   </td>
                 </tr>
               ))}
