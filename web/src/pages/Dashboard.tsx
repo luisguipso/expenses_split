@@ -1,10 +1,38 @@
+import { useState, useEffect } from 'react';
 import { useHousehold } from '../lib/household';
+import { summaryApi, DashboardResponse } from '../lib/summary-api';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
+
+function formatCurrency(cents: number): string {
+  return (cents / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
+}
+
+const monthNames = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
 export default function Dashboard() {
   const { activeHousehold, isLoading } = useHousehold();
   const navigate = useNavigate();
+  const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!activeHousehold) return;
+    setLoading(true);
+    setError('');
+    summaryApi
+      .getDashboard(activeHousehold.id)
+      .then(setDashboard)
+      .catch(() => setError('Erro ao carregar painel.'))
+      .finally(() => setLoading(false));
+  }, [activeHousehold?.id]);
 
   if (isLoading) {
     return (
@@ -35,36 +63,138 @@ export default function Dashboard() {
     );
   }
 
+  if (loading) {
+    return (
+      <Layout>
+        <p className="text-gray-500">Carregando painel...</p>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="rounded bg-red-50 p-3 text-sm text-red-600">{error}</div>
+      </Layout>
+    );
+  }
+
+  if (!dashboard) return <Layout><p className="text-gray-500">Sem dados.</p></Layout>;
+
+  const total = dashboard.total_expenses + dashboard.total_fixed_bills;
+
   return (
     <Layout>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="rounded-lg bg-white p-6 shadow">
-          <h2 className="text-lg font-semibold text-gray-700">
-            Total do Mês
-          </h2>
-          <p className="mt-2 text-3xl font-bold text-green-600">R$ 0,00</p>
+      <h2 className="mb-6 text-xl font-bold text-gray-900">
+        {dashboard.household_name} — {monthNames[dashboard.month - 1]} {dashboard.year}
+      </h2>
+
+      {/* Summary cards */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-lg bg-white p-5 shadow">
+          <span className="text-sm text-gray-500">Total do Mês</span>
+          <p className="mt-1 text-2xl font-bold text-green-600">
+            {formatCurrency(total)}
+          </p>
         </div>
-        <div className="rounded-lg bg-white p-6 shadow">
-          <h2 className="text-lg font-semibold text-gray-700">
-            Contas Fixas
-          </h2>
-          <p className="mt-2 text-3xl font-bold text-blue-600">R$ 0,00</p>
+        <div className="rounded-lg bg-white p-5 shadow">
+          <span className="text-sm text-gray-500">
+            Contas Fixas ({dashboard.fixed_bill_count})
+          </span>
+          <p className="mt-1 text-2xl font-bold text-blue-600">
+            {formatCurrency(dashboard.total_fixed_bills)}
+          </p>
         </div>
-        <div className="rounded-lg bg-white p-6 shadow">
-          <h2 className="text-lg font-semibold text-gray-700">
-            Despesas Variáveis
-          </h2>
-          <p className="mt-2 text-3xl font-bold text-orange-600">R$ 0,00</p>
+        <div className="rounded-lg bg-white p-5 shadow">
+          <span className="text-sm text-gray-500">
+            Despesas ({dashboard.expense_count})
+          </span>
+          <p className="mt-1 text-2xl font-bold text-orange-600">
+            {formatCurrency(dashboard.total_expenses)}
+          </p>
+        </div>
+        <div className="rounded-lg bg-white p-5 shadow">
+          <span className="text-sm text-gray-500">Compartilhado / Pessoal</span>
+          <p className="mt-1 text-lg font-semibold text-gray-800">
+            {formatCurrency(dashboard.total_shared)}{' '}
+            <span className="text-sm font-normal text-gray-400">/</span>{' '}
+            {formatCurrency(dashboard.total_personal)}
+          </p>
         </div>
       </div>
-      <div className="mt-8 rounded-lg bg-white p-6 shadow">
-        <h2 className="text-lg font-semibold text-gray-700">
-          {activeHousehold.name}
-        </h2>
-        <p className="mt-2 text-gray-500">
-          Os dados do painel serão preenchidos nas próximas fases. Use a
-          navegação acima para gerenciar moradores.
-        </p>
+
+      {/* Member breakdown */}
+      {dashboard.member_breakdown && dashboard.member_breakdown.length > 0 ? (
+        <div className="overflow-hidden rounded-lg bg-white shadow">
+          <div className="border-b border-gray-200 px-6 py-4">
+            <h3 className="text-lg font-semibold text-gray-800">
+              Divisão por Morador
+            </h3>
+          </div>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                  Morador
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                  Proporção
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                  Compartilhado
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                  Pessoal
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                  Total a Pagar
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {dashboard.member_breakdown.map((item) => (
+                <tr key={item.user_id}>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                    {item.user_name}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-500">
+                    {(item.proportion * 100).toFixed(1)}%
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-700">
+                    {formatCurrency(item.total_shared_cents)}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-700">
+                    {formatCurrency(item.total_personal_cents)}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-bold text-gray-900">
+                    {formatCurrency(item.amount_due_cents)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="rounded-lg bg-white p-6 shadow">
+          <p className="text-gray-500">
+            Configure os salários dos moradores para ver a divisão proporcional.
+          </p>
+          <button
+            onClick={() => navigate('/membros')}
+            className="mt-3 rounded-md bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+          >
+            Configurar Salários
+          </button>
+        </div>
+      )}
+
+      <div className="mt-6 text-right">
+        <button
+          onClick={() => navigate('/resumo')}
+          className="text-sm text-blue-600 hover:text-blue-800"
+        >
+          Ver resumo mensal detalhado →
+        </button>
       </div>
     </Layout>
   );

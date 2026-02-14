@@ -12,6 +12,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     { path: '/', label: 'Painel' },
     { path: '/despesas', label: 'Despesas' },
     { path: '/contas-fixas', label: 'Contas Fixas' },
+    { path: '/resumo', label: 'Resumo' },
     { path: '/categorias', label: 'Categorias' },
     { path: '/membros', label: 'Moradores' },
     { path: '/residencias', label: 'Residências' },

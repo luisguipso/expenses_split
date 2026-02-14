@@ -9,6 +9,7 @@ import Members from './pages/Members';
 import Categories from './pages/Categories';
 import FixedBills from './pages/FixedBills';
 import Expenses from './pages/Expenses';
+import Summary from './pages/Summary';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -85,6 +86,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <Expenses />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/resumo"
+              element={
+                <PrivateRoute>
+                  <Summary />
                 </PrivateRoute>
               }
             />
