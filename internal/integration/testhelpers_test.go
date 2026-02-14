@@ -168,6 +168,19 @@ func createHousehold(t *testing.T, token, name string) string {
 	return result["id"].(string)
 }
 
+// joinHousehold makes a user join a household via invite code.
+func joinHousehold(t *testing.T, joinerToken, householdID, ownerToken string) {
+	t.Helper()
+	resp := doGet(t, "/households/"+householdID, ownerToken, http.StatusOK)
+	var hh map[string]interface{}
+	decodeJSON(t, resp, &hh)
+	inviteCode := hh["invite_code"].(string)
+
+	doJSON(t, http.MethodPost, "/households/join",
+		domain.JoinHouseholdInput{InviteCode: inviteCode},
+		joinerToken, http.StatusOK)
+}
+
 // doJSON sends a JSON request to the test server and asserts the expected status code.
 func doJSON(t *testing.T, method, path string, body interface{}, token string, expectedStatus int) *http.Response {
 	t.Helper()
