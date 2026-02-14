@@ -48,3 +48,33 @@ type HouseholdService interface {
 type HealthChecker interface {
 	Ping(ctx context.Context) error
 }
+
+type CategoryRepository interface {
+	Create(ctx context.Context, category *Category) error
+	FindByID(ctx context.Context, id string) (*Category, error)
+	ListByHousehold(ctx context.Context, householdID string) ([]Category, error)
+	Update(ctx context.Context, category *Category) error
+	Delete(ctx context.Context, id string) error
+}
+
+type CategoryService interface {
+	Create(ctx context.Context, input CreateCategoryInput, householdID, userID string) (*Category, error)
+	List(ctx context.Context, householdID, userID string) ([]Category, error)
+	Update(ctx context.Context, id string, input UpdateCategoryInput, userID string) (*Category, error)
+	Delete(ctx context.Context, id, userID string) error
+}
+
+type FixedBillRepository interface {
+	Create(ctx context.Context, bill *FixedBill) error
+	FindByID(ctx context.Context, id string) (*FixedBill, error)
+	ListByHousehold(ctx context.Context, householdID string) ([]FixedBill, error)
+	Update(ctx context.Context, bill *FixedBill) error
+	Delete(ctx context.Context, id string) error
+}
+
+type FixedBillService interface {
+	Create(ctx context.Context, input CreateFixedBillInput, householdID, userID string) (*FixedBill, error)
+	List(ctx context.Context, householdID, userID string) ([]FixedBill, error)
+	Update(ctx context.Context, id string, input UpdateFixedBillInput, userID string) (*FixedBill, error)
+	Delete(ctx context.Context, id, userID string) error
+}

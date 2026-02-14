@@ -162,3 +162,99 @@ func (m *HouseholdService) UpdateMemberSalary(ctx context.Context, householdID, 
 func (m *HouseholdService) RemoveMember(ctx context.Context, householdID, memberID, userID string) error {
 	return m.RemoveMemberFn(ctx, householdID, memberID, userID)
 }
+
+// CategoryRepository
+
+type CategoryRepository struct {
+	CreateFn          func(ctx context.Context, category *domain.Category) error
+	FindByIDFn        func(ctx context.Context, id string) (*domain.Category, error)
+	ListByHouseholdFn func(ctx context.Context, householdID string) ([]domain.Category, error)
+	UpdateFn          func(ctx context.Context, category *domain.Category) error
+	DeleteFn          func(ctx context.Context, id string) error
+}
+
+func (m *CategoryRepository) Create(ctx context.Context, c *domain.Category) error {
+	return m.CreateFn(ctx, c)
+}
+func (m *CategoryRepository) FindByID(ctx context.Context, id string) (*domain.Category, error) {
+	return m.FindByIDFn(ctx, id)
+}
+func (m *CategoryRepository) ListByHousehold(ctx context.Context, householdID string) ([]domain.Category, error) {
+	return m.ListByHouseholdFn(ctx, householdID)
+}
+func (m *CategoryRepository) Update(ctx context.Context, c *domain.Category) error {
+	return m.UpdateFn(ctx, c)
+}
+func (m *CategoryRepository) Delete(ctx context.Context, id string) error {
+	return m.DeleteFn(ctx, id)
+}
+
+// CategoryService
+
+type CategoryService struct {
+	CreateFn func(ctx context.Context, input domain.CreateCategoryInput, householdID, userID string) (*domain.Category, error)
+	ListFn   func(ctx context.Context, householdID, userID string) ([]domain.Category, error)
+	UpdateFn func(ctx context.Context, id string, input domain.UpdateCategoryInput, userID string) (*domain.Category, error)
+	DeleteFn func(ctx context.Context, id, userID string) error
+}
+
+func (m *CategoryService) Create(ctx context.Context, input domain.CreateCategoryInput, householdID, userID string) (*domain.Category, error) {
+	return m.CreateFn(ctx, input, householdID, userID)
+}
+func (m *CategoryService) List(ctx context.Context, householdID, userID string) ([]domain.Category, error) {
+	return m.ListFn(ctx, householdID, userID)
+}
+func (m *CategoryService) Update(ctx context.Context, id string, input domain.UpdateCategoryInput, userID string) (*domain.Category, error) {
+	return m.UpdateFn(ctx, id, input, userID)
+}
+func (m *CategoryService) Delete(ctx context.Context, id, userID string) error {
+	return m.DeleteFn(ctx, id, userID)
+}
+
+// FixedBillRepository
+
+type FixedBillRepository struct {
+	CreateFn          func(ctx context.Context, bill *domain.FixedBill) error
+	FindByIDFn        func(ctx context.Context, id string) (*domain.FixedBill, error)
+	ListByHouseholdFn func(ctx context.Context, householdID string) ([]domain.FixedBill, error)
+	UpdateFn          func(ctx context.Context, bill *domain.FixedBill) error
+	DeleteFn          func(ctx context.Context, id string) error
+}
+
+func (m *FixedBillRepository) Create(ctx context.Context, b *domain.FixedBill) error {
+	return m.CreateFn(ctx, b)
+}
+func (m *FixedBillRepository) FindByID(ctx context.Context, id string) (*domain.FixedBill, error) {
+	return m.FindByIDFn(ctx, id)
+}
+func (m *FixedBillRepository) ListByHousehold(ctx context.Context, householdID string) ([]domain.FixedBill, error) {
+	return m.ListByHouseholdFn(ctx, householdID)
+}
+func (m *FixedBillRepository) Update(ctx context.Context, b *domain.FixedBill) error {
+	return m.UpdateFn(ctx, b)
+}
+func (m *FixedBillRepository) Delete(ctx context.Context, id string) error {
+	return m.DeleteFn(ctx, id)
+}
+
+// FixedBillService
+
+type FixedBillService struct {
+	CreateFn func(ctx context.Context, input domain.CreateFixedBillInput, householdID, userID string) (*domain.FixedBill, error)
+	ListFn   func(ctx context.Context, householdID, userID string) ([]domain.FixedBill, error)
+	UpdateFn func(ctx context.Context, id string, input domain.UpdateFixedBillInput, userID string) (*domain.FixedBill, error)
+	DeleteFn func(ctx context.Context, id, userID string) error
+}
+
+func (m *FixedBillService) Create(ctx context.Context, input domain.CreateFixedBillInput, householdID, userID string) (*domain.FixedBill, error) {
+	return m.CreateFn(ctx, input, householdID, userID)
+}
+func (m *FixedBillService) List(ctx context.Context, householdID, userID string) ([]domain.FixedBill, error) {
+	return m.ListFn(ctx, householdID, userID)
+}
+func (m *FixedBillService) Update(ctx context.Context, id string, input domain.UpdateFixedBillInput, userID string) (*domain.FixedBill, error) {
+	return m.UpdateFn(ctx, id, input, userID)
+}
+func (m *FixedBillService) Delete(ctx context.Context, id, userID string) error {
+	return m.DeleteFn(ctx, id, userID)
+}

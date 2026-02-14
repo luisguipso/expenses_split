@@ -80,3 +80,54 @@ type MemberResponse struct {
 	Role        string `json:"role"`
 	JoinedAt    string `json:"joined_at"`
 }
+
+// Category DTOs
+
+type CreateCategoryInput struct {
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+}
+
+type UpdateCategoryInput struct {
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+}
+
+type CategoryResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+}
+
+// Fixed Bill DTOs
+
+type CreateFixedBillInput struct {
+	CategoryID  string `json:"category_id"`
+	Description string `json:"description"`
+	AmountCents int64  `json:"amount_cents"`
+	DueDay      int    `json:"due_day"`
+	IsShared    bool   `json:"is_shared"`
+	AssignedTo  string `json:"assigned_to"`
+}
+
+type UpdateFixedBillInput struct {
+	CategoryID  string `json:"category_id"`
+	Description string `json:"description"`
+	AmountCents int64  `json:"amount_cents"`
+	DueDay      int    `json:"due_day"`
+	IsShared    bool   `json:"is_shared"`
+	AssignedTo  string `json:"assigned_to"`
+	IsActive    bool   `json:"is_active"`
+}
+
+type FixedBillResponse struct {
+	ID           string `json:"id"`
+	CategoryID   string `json:"category_id,omitempty"`
+	CategoryName string `json:"category_name,omitempty"`
+	Description  string `json:"description"`
+	AmountCents  int64  `json:"amount_cents"`
+	DueDay       int    `json:"due_day"`
+	IsShared     bool   `json:"is_shared"`
+	AssignedTo   string `json:"assigned_to,omitempty"`
+	IsActive     bool   `json:"is_active"`
+}

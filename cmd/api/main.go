@@ -35,16 +35,22 @@ func main() {
 	// Repositories
 	userRepo := repository.NewUserRepository(db)
 	householdRepo := repository.NewHouseholdRepository(db)
+	categoryRepo := repository.NewCategoryRepository(db)
+	fixedBillRepo := repository.NewFixedBillRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	// Services
 	tokenService := service.NewJWTTokenService(cfg.JWTSecret)
 	authService := service.NewAuthService(userRepo, tokenService)
 	householdService := service.NewHouseholdService(householdRepo)
+	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
+	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
 	householdHandler := handler.NewHouseholdHandler(householdService)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+	fixedBillHandler := handler.NewFixedBillHandler(fixedBillService)
 	authMW := appMiddleware.JWTAuth(tokenService)
 
 	// Router
@@ -62,6 +68,8 @@ func main() {
 	handler.RegisterHealthRoutes(e, healthChecker)
 	handler.RegisterAuthRoutes(e, authHandler, authMW)
 	handler.RegisterHouseholdRoutes(e, householdHandler, authMW)
+	handler.RegisterCategoryRoutes(e, categoryHandler, authMW)
+	handler.RegisterFixedBillRoutes(e, fixedBillHandler, authMW)
 
 	port := cfg.Port
 	if port == "" {

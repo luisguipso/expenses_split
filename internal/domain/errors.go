@@ -12,4 +12,7 @@ var (
 	ErrNotMember          = errors.New("user is not a member")
 	ErrInvalidInviteCode  = errors.New("invalid invite code")
 	ErrForbidden          = errors.New("forbidden")
+	ErrCategoryNotFound   = errors.New("category not found")
+	ErrCategoryExists     = errors.New("category already exists")
+	ErrFixedBillNotFound  = errors.New("fixed bill not found")
 )
