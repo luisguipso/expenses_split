@@ -34,14 +34,17 @@ func main() {
 
 	// Repositories
 	userRepo := repository.NewUserRepository(db)
+	householdRepo := repository.NewHouseholdRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	// Services
 	tokenService := service.NewJWTTokenService(cfg.JWTSecret)
 	authService := service.NewAuthService(userRepo, tokenService)
+	householdService := service.NewHouseholdService(householdRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
+	householdHandler := handler.NewHouseholdHandler(householdService)
 	authMW := appMiddleware.JWTAuth(tokenService)
 
 	// Router
@@ -58,6 +61,7 @@ func main() {
 
 	handler.RegisterHealthRoutes(e, healthChecker)
 	handler.RegisterAuthRoutes(e, authHandler, authMW)
+	handler.RegisterHouseholdRoutes(e, householdHandler, authMW)
 
 	port := cfg.Port
 	if port == "" {

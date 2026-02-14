@@ -46,3 +46,37 @@ type HealthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database"`
 }
+
+// Household DTOs
+
+type CreateHouseholdInput struct {
+	Name string `json:"name"`
+}
+
+type UpdateHouseholdInput struct {
+	Name string `json:"name"`
+}
+
+type JoinHouseholdInput struct {
+	InviteCode string `json:"invite_code"`
+}
+
+type UpdateSalaryInput struct {
+	SalaryCents int64 `json:"salary_cents"`
+}
+
+type HouseholdResponse struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	InviteCode string `json:"invite_code,omitempty"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type MemberResponse struct {
+	UserID      string `json:"user_id"`
+	UserName    string `json:"user_name"`
+	UserEmail   string `json:"user_email"`
+	SalaryCents int64  `json:"salary_cents"`
+	Role        string `json:"role"`
+	JoinedAt    string `json:"joined_at"`
+}
