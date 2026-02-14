@@ -1,0 +1,1 @@
+../internal/migrate/sql/000001_initial_schema.down.sql

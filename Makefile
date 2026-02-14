@@ -28,6 +28,9 @@ migrate-down:
 	go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest \
 		-path migrations -database "$${DATABASE_URL}" down 1
 
+seed:
+	go run ./cmd/seed
+
 # Frontend
 web-dev:
 	cd web && npm run dev

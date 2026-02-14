@@ -9,6 +9,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lguilherme/contas/internal/config"
 	"github.com/lguilherme/contas/internal/handler"
+	"github.com/lguilherme/contas/internal/migrate"
 )
 
 func main() {
@@ -17,6 +18,10 @@ func main() {
 	}
 
 	cfg := config.Load()
+
+	if err := migrate.Run(cfg.DatabaseURL); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 
 	db, err := config.NewDB(cfg.DatabaseURL)
 	if err != nil {
