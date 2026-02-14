@@ -78,3 +78,18 @@ type FixedBillService interface {
 	Update(ctx context.Context, id string, input UpdateFixedBillInput, userID string) (*FixedBill, error)
 	Delete(ctx context.Context, id, userID string) error
 }
+
+type ExpenseRepository interface {
+	Create(ctx context.Context, expense *Expense) error
+	FindByID(ctx context.Context, id string) (*Expense, error)
+	ListByHousehold(ctx context.Context, householdID string, filter ExpenseFilter) ([]Expense, error)
+	Update(ctx context.Context, expense *Expense) error
+	Delete(ctx context.Context, id string) error
+}
+
+type ExpenseService interface {
+	Create(ctx context.Context, input CreateExpenseInput, householdID, userID string) (*Expense, error)
+	List(ctx context.Context, householdID, userID string, filter ExpenseFilter) ([]Expense, error)
+	Update(ctx context.Context, id string, input UpdateExpenseInput, userID string) (*Expense, error)
+	Delete(ctx context.Context, id, userID string) error
+}

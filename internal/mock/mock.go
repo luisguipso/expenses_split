@@ -258,3 +258,51 @@ func (m *FixedBillService) Update(ctx context.Context, id string, input domain.U
 func (m *FixedBillService) Delete(ctx context.Context, id, userID string) error {
 	return m.DeleteFn(ctx, id, userID)
 }
+
+// ExpenseRepository
+
+type ExpenseRepository struct {
+	CreateFn          func(ctx context.Context, expense *domain.Expense) error
+	FindByIDFn        func(ctx context.Context, id string) (*domain.Expense, error)
+	ListByHouseholdFn func(ctx context.Context, householdID string, filter domain.ExpenseFilter) ([]domain.Expense, error)
+	UpdateFn          func(ctx context.Context, expense *domain.Expense) error
+	DeleteFn          func(ctx context.Context, id string) error
+}
+
+func (m *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error {
+	return m.CreateFn(ctx, e)
+}
+func (m *ExpenseRepository) FindByID(ctx context.Context, id string) (*domain.Expense, error) {
+	return m.FindByIDFn(ctx, id)
+}
+func (m *ExpenseRepository) ListByHousehold(ctx context.Context, householdID string, filter domain.ExpenseFilter) ([]domain.Expense, error) {
+	return m.ListByHouseholdFn(ctx, householdID, filter)
+}
+func (m *ExpenseRepository) Update(ctx context.Context, e *domain.Expense) error {
+	return m.UpdateFn(ctx, e)
+}
+func (m *ExpenseRepository) Delete(ctx context.Context, id string) error {
+	return m.DeleteFn(ctx, id)
+}
+
+// ExpenseService
+
+type ExpenseService struct {
+	CreateFn func(ctx context.Context, input domain.CreateExpenseInput, householdID, userID string) (*domain.Expense, error)
+	ListFn   func(ctx context.Context, householdID, userID string, filter domain.ExpenseFilter) ([]domain.Expense, error)
+	UpdateFn func(ctx context.Context, id string, input domain.UpdateExpenseInput, userID string) (*domain.Expense, error)
+	DeleteFn func(ctx context.Context, id, userID string) error
+}
+
+func (m *ExpenseService) Create(ctx context.Context, input domain.CreateExpenseInput, householdID, userID string) (*domain.Expense, error) {
+	return m.CreateFn(ctx, input, householdID, userID)
+}
+func (m *ExpenseService) List(ctx context.Context, householdID, userID string, filter domain.ExpenseFilter) ([]domain.Expense, error) {
+	return m.ListFn(ctx, householdID, userID, filter)
+}
+func (m *ExpenseService) Update(ctx context.Context, id string, input domain.UpdateExpenseInput, userID string) (*domain.Expense, error) {
+	return m.UpdateFn(ctx, id, input, userID)
+}
+func (m *ExpenseService) Delete(ctx context.Context, id, userID string) error {
+	return m.DeleteFn(ctx, id, userID)
+}

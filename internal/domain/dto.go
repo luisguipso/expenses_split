@@ -131,3 +131,43 @@ type FixedBillResponse struct {
 	AssignedTo   string `json:"assigned_to,omitempty"`
 	IsActive     bool   `json:"is_active"`
 }
+
+// Expense DTOs
+
+type CreateExpenseInput struct {
+	CategoryID  string `json:"category_id"`
+	Description string `json:"description"`
+	AmountCents int64  `json:"amount_cents"`
+	ExpenseDate string `json:"expense_date"`
+	IsShared    bool   `json:"is_shared"`
+	AssignedTo  string `json:"assigned_to"`
+}
+
+type UpdateExpenseInput struct {
+	CategoryID  string `json:"category_id"`
+	Description string `json:"description"`
+	AmountCents int64  `json:"amount_cents"`
+	ExpenseDate string `json:"expense_date"`
+	IsShared    bool   `json:"is_shared"`
+	AssignedTo  string `json:"assigned_to"`
+}
+
+type ExpenseFilter struct {
+	Month      int    `query:"month"`
+	Year       int    `query:"year"`
+	CategoryID string `query:"category_id"`
+	UserID     string `query:"user_id"`
+}
+
+type ExpenseResponse struct {
+	ID           string `json:"id"`
+	CategoryID   string `json:"category_id,omitempty"`
+	CategoryName string `json:"category_name,omitempty"`
+	Description  string `json:"description"`
+	AmountCents  int64  `json:"amount_cents"`
+	ExpenseDate  string `json:"expense_date"`
+	IsShared     bool   `json:"is_shared"`
+	PaidBy       string `json:"paid_by"`
+	PaidByName   string `json:"paid_by_name,omitempty"`
+	AssignedTo   string `json:"assigned_to,omitempty"`
+}
