@@ -21,6 +21,7 @@ const emptyForm = {
   amount: '',
   due_day: '',
   is_shared: true,
+  paid_by: '',
   assigned_to: '',
   is_active: true,
 };
@@ -77,6 +78,7 @@ export default function FixedBills() {
       amount: (bill.amount_cents / 100).toFixed(2),
       due_day: String(bill.due_day),
       is_shared: bill.is_shared,
+      paid_by: bill.paid_by || '',
       assigned_to: bill.assigned_to || '',
       is_active: bill.is_active,
     });
@@ -115,6 +117,7 @@ export default function FixedBills() {
           amount_cents: amountCents,
           due_day: dueDay,
           is_shared: form.is_shared,
+          paid_by: form.paid_by,
           assigned_to: form.is_shared ? '' : form.assigned_to,
           is_active: form.is_active,
         };
@@ -126,6 +129,7 @@ export default function FixedBills() {
           amount_cents: amountCents,
           due_day: dueDay,
           is_shared: form.is_shared,
+          paid_by: form.paid_by,
           assigned_to: form.is_shared ? '' : form.assigned_to,
         };
         await fixedBillApi.create(activeHousehold.id, data);
@@ -247,6 +251,24 @@ export default function FixedBills() {
               />
             </div>
 
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Pago por
+              </label>
+              <select
+                value={form.paid_by}
+                onChange={(e) => setForm({ ...form, paid_by: e.target.value })}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                <option value="">Eu (padrão)</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.user_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
@@ -322,6 +344,7 @@ export default function FixedBills() {
           <div className="divide-y divide-gray-200 sm:hidden">
             {bills.map((bill) => {
               const assignedMember = members.find((m) => m.user_id === bill.assigned_to);
+              const paidByMember = members.find((m) => m.user_id === bill.paid_by);
               return (
                 <div key={bill.id} className={`px-4 py-4 space-y-2 ${!bill.is_active ? 'opacity-50' : ''}`}>
                   <div className="flex items-start justify-between">
@@ -330,6 +353,7 @@ export default function FixedBills() {
                       <div className="mt-0.5 text-xs text-gray-500">
                         {bill.category_name && <span>{bill.category_name} · </span>}
                         Dia {bill.due_day}
+                        {paidByMember && <span> · Pago por {bill.paid_by_name || paidByMember.user_name}</span>}
                       </div>
                     </div>
                     <span className="text-sm font-semibold text-gray-900">
@@ -381,6 +405,9 @@ export default function FixedBills() {
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase text-gray-500">
                   Vencimento
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
+                  Pago por
+                </th>
                 <th className="px-6 py-3 text-center text-xs font-medium uppercase text-gray-500">
                   Tipo
                 </th>
@@ -395,6 +422,7 @@ export default function FixedBills() {
             <tbody className="divide-y divide-gray-200">
               {bills.map((bill) => {
                 const assignedMember = members.find((m) => m.user_id === bill.assigned_to);
+                const paidByMember = members.find((m) => m.user_id === bill.paid_by);
                 return (
                   <tr key={bill.id} className={!bill.is_active ? 'opacity-50' : ''}>
                     <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
@@ -408,6 +436,9 @@ export default function FixedBills() {
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
                       Dia {bill.due_day}
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                      {bill.paid_by_name || paidByMember?.user_name || '—'}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-center text-sm">
                       {bill.is_shared ? (

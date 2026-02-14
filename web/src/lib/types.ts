@@ -28,6 +28,8 @@ export interface FixedBill {
   amount_cents: number;
   due_day: number;
   is_shared: boolean;
+  paid_by: string;
+  paid_by_name?: string;
   assigned_to?: string;
   is_active: boolean;
 }

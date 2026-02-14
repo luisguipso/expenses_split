@@ -29,10 +29,10 @@ func (r *fixedBillRepository) Create(ctx context.Context, b *domain.FixedBill) e
 	}
 
 	err := r.db.QueryRow(ctx,
-		`INSERT INTO fixed_bills (household_id, category_id, description, amount_cents, due_day, is_shared, assigned_to)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO fixed_bills (household_id, category_id, description, amount_cents, due_day, is_shared, paid_by, assigned_to)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id, is_active, created_at, updated_at`,
-		b.HouseholdID, categoryID, b.Description, b.AmountCents, b.DueDay, b.IsShared, assignedTo,
+		b.HouseholdID, categoryID, b.Description, b.AmountCents, b.DueDay, b.IsShared, b.PaidBy, assignedTo,
 	).Scan(&b.ID, &b.IsActive, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create fixed bill: %w", err)
@@ -42,16 +42,19 @@ func (r *fixedBillRepository) Create(ctx context.Context, b *domain.FixedBill) e
 
 func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.FixedBill, error) {
 	b := &domain.FixedBill{}
-	var categoryID, assignedTo, categoryName sql.NullString
+	var categoryID, assignedTo, categoryName, paidByName sql.NullString
 	err := r.db.QueryRow(ctx,
 		`SELECT fb.id, fb.household_id, fb.category_id, c.name, fb.description,
-		        fb.amount_cents, fb.due_day, fb.is_shared, fb.assigned_to, fb.is_active,
+		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by, u.name,
+		        fb.assigned_to, fb.is_active,
 		        fb.created_at, fb.updated_at
 		 FROM fixed_bills fb
 		 LEFT JOIN categories c ON c.id = fb.category_id
+		 LEFT JOIN users u ON u.id = fb.paid_by
 		 WHERE fb.id = $1`, id,
 	).Scan(&b.ID, &b.HouseholdID, &categoryID, &categoryName, &b.Description,
-		&b.AmountCents, &b.DueDay, &b.IsShared, &assignedTo, &b.IsActive,
+		&b.AmountCents, &b.DueDay, &b.IsShared, &b.PaidBy, &paidByName,
+		&assignedTo, &b.IsActive,
 		&b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -65,6 +68,9 @@ func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.
 	if categoryName.Valid {
 		b.CategoryName = categoryName.String
 	}
+	if paidByName.Valid {
+		b.PaidByName = paidByName.String
+	}
 	if assignedTo.Valid {
 		b.AssignedTo = assignedTo.String
 	}
@@ -74,10 +80,12 @@ func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.
 func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID string) ([]domain.FixedBill, error) {
 	rows, err := r.db.Query(ctx,
 		`SELECT fb.id, fb.household_id, fb.category_id, c.name, fb.description,
-		        fb.amount_cents, fb.due_day, fb.is_shared, fb.assigned_to, fb.is_active,
+		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by, u.name,
+		        fb.assigned_to, fb.is_active,
 		        fb.created_at, fb.updated_at
 		 FROM fixed_bills fb
 		 LEFT JOIN categories c ON c.id = fb.category_id
+		 LEFT JOIN users u ON u.id = fb.paid_by
 		 WHERE fb.household_id = $1
 		 ORDER BY fb.due_day, fb.description`, householdID,
 	)
@@ -89,9 +97,10 @@ func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID s
 	var bills []domain.FixedBill
 	for rows.Next() {
 		var b domain.FixedBill
-		var categoryID, assignedTo, categoryName sql.NullString
+		var categoryID, assignedTo, categoryName, paidByName sql.NullString
 		if err := rows.Scan(&b.ID, &b.HouseholdID, &categoryID, &categoryName, &b.Description,
-			&b.AmountCents, &b.DueDay, &b.IsShared, &assignedTo, &b.IsActive,
+			&b.AmountCents, &b.DueDay, &b.IsShared, &b.PaidBy, &paidByName,
+			&assignedTo, &b.IsActive,
 			&b.CreatedAt, &b.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan fixed bill: %w", err)
 		}
@@ -100,6 +109,9 @@ func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID s
 		}
 		if categoryName.Valid {
 			b.CategoryName = categoryName.String
+		}
+		if paidByName.Valid {
+			b.PaidByName = paidByName.String
 		}
 		if assignedTo.Valid {
 			b.AssignedTo = assignedTo.String
@@ -120,9 +132,9 @@ func (r *fixedBillRepository) Update(ctx context.Context, b *domain.FixedBill) e
 
 	result, err := r.db.Exec(ctx,
 		`UPDATE fixed_bills SET category_id = $1, description = $2, amount_cents = $3,
-		 due_day = $4, is_shared = $5, assigned_to = $6, is_active = $7, updated_at = now()
-		 WHERE id = $8`,
-		categoryID, b.Description, b.AmountCents, b.DueDay, b.IsShared, assignedTo, b.IsActive, b.ID,
+		 due_day = $4, is_shared = $5, paid_by = $6, assigned_to = $7, is_active = $8, updated_at = now()
+		 WHERE id = $9`,
+		categoryID, b.Description, b.AmountCents, b.DueDay, b.IsShared, b.PaidBy, assignedTo, b.IsActive, b.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update fixed bill: %w", err)

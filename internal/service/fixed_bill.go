@@ -28,7 +28,11 @@ func (s *fixedBillService) Create(ctx context.Context, input domain.CreateFixedB
 		AmountCents: input.AmountCents,
 		DueDay:      input.DueDay,
 		IsShared:    input.IsShared,
+		PaidBy:      input.PaidBy,
 		AssignedTo:  input.AssignedTo,
+	}
+	if b.PaidBy == "" {
+		b.PaidBy = userID
 	}
 	if err := s.repo.Create(ctx, b); err != nil {
 		return nil, err
@@ -58,8 +62,13 @@ func (s *fixedBillService) Update(ctx context.Context, id string, input domain.U
 	b.AmountCents = input.AmountCents
 	b.DueDay = input.DueDay
 	b.IsShared = input.IsShared
+	b.PaidBy = input.PaidBy
 	b.AssignedTo = input.AssignedTo
 	b.IsActive = input.IsActive
+
+	if b.PaidBy == "" {
+		b.PaidBy = userID
+	}
 
 	if err := s.repo.Update(ctx, b); err != nil {
 		return nil, err

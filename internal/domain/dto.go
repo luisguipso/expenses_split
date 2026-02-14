@@ -107,6 +107,7 @@ type CreateFixedBillInput struct {
 	AmountCents int64  `json:"amount_cents"`
 	DueDay      int    `json:"due_day"`
 	IsShared    bool   `json:"is_shared"`
+	PaidBy      string `json:"paid_by"`
 	AssignedTo  string `json:"assigned_to"`
 }
 
@@ -116,6 +117,7 @@ type UpdateFixedBillInput struct {
 	AmountCents int64  `json:"amount_cents"`
 	DueDay      int    `json:"due_day"`
 	IsShared    bool   `json:"is_shared"`
+	PaidBy      string `json:"paid_by"`
 	AssignedTo  string `json:"assigned_to"`
 	IsActive    bool   `json:"is_active"`
 }
@@ -128,6 +130,8 @@ type FixedBillResponse struct {
 	AmountCents  int64  `json:"amount_cents"`
 	DueDay       int    `json:"due_day"`
 	IsShared     bool   `json:"is_shared"`
+	PaidBy       string `json:"paid_by"`
+	PaidByName   string `json:"paid_by_name,omitempty"`
 	AssignedTo   string `json:"assigned_to,omitempty"`
 	IsActive     bool   `json:"is_active"`
 }

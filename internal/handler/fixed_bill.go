@@ -139,6 +139,8 @@ func toFixedBillResponse(b *domain.FixedBill) domain.FixedBillResponse {
 		AmountCents:  b.AmountCents,
 		DueDay:       b.DueDay,
 		IsShared:     b.IsShared,
+		PaidBy:       b.PaidBy,
+		PaidByName:   b.PaidByName,
 		AssignedTo:   b.AssignedTo,
 		IsActive:     b.IsActive,
 	}

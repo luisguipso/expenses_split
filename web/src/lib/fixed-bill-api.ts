@@ -7,6 +7,7 @@ export interface CreateFixedBillInput {
   amount_cents: number;
   due_day: number;
   is_shared: boolean;
+  paid_by: string;
   assigned_to: string;
 }
 
