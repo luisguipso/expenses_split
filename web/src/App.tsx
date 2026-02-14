@@ -6,6 +6,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Households from './pages/Households';
 import Members from './pages/Members';
+import Categories from './pages/Categories';
+import FixedBills from './pages/FixedBills';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -58,6 +60,22 @@ function App() {
               element={
                 <PrivateRoute>
                   <Members />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/categorias"
+              element={
+                <PrivateRoute>
+                  <Categories />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/contas-fixas"
+              element={
+                <PrivateRoute>
+                  <FixedBills />
                 </PrivateRoute>
               }
             />
