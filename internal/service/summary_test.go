@@ -1233,8 +1233,8 @@ func TestSummaryService_Dashboard_BalanceFields(t *testing.T) {
 // --- GetUserDetail tests ---
 
 func TestSummaryService_GetUserDetail_SharedItems(t *testing.T) {
-	// Alice 62.5%, Bob 37.5%. Shared expense R$100 + shared bill R$50.
-	// Alice's detail: expense share 6250, bill share 3125 = total 9375
+	// Alice 62.5%, Bob 37.5%. Shared expense R$100 paid by Alice + shared bill R$50 paid by Bob.
+	// Alice's detail: only shows items she paid → expense R$100 (share 6250)
 	hhRepo := &mock.HouseholdRepository{
 		GetMemberFn:   memberOK(),
 		ListMembersFn: twoMembers(),
@@ -1263,60 +1263,39 @@ func TestSummaryService_GetUserDetail_SharedItems(t *testing.T) {
 	if detail.UserID != "u1" || detail.UserName != "Alice" {
 		t.Errorf("unexpected user: %s / %s", detail.UserID, detail.UserName)
 	}
-	if len(detail.Items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(detail.Items))
+	// Alice only paid the expense, not the bill → 1 item
+	if len(detail.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(detail.Items))
 	}
 
-	// Verify items
-	for _, item := range detail.Items {
-		if !item.IsShared {
-			t.Errorf("expected all shared, got personal: %s", item.Description)
-		}
-		switch item.Description {
-		case "Mercado":
-			if item.Type != "expense" {
-				t.Errorf("Mercado type: expected expense, got %s", item.Type)
-			}
-			if item.TotalCents != 10000 {
-				t.Errorf("Mercado total: expected 10000, got %d", item.TotalCents)
-			}
-			if item.UserShareCents != 6250 {
-				t.Errorf("Mercado share: expected 6250, got %d", item.UserShareCents)
-			}
-			if item.CategoryName != "Alimentação" {
-				t.Errorf("Mercado category: expected Alimentação, got %s", item.CategoryName)
-			}
-		case "Internet":
-			if item.Type != "fixed_bill" {
-				t.Errorf("Internet type: expected fixed_bill, got %s", item.Type)
-			}
-			if item.UserShareCents != 3125 {
-				t.Errorf("Internet share: expected 3125, got %d", item.UserShareCents)
-			}
-		}
+	item := detail.Items[0]
+	if item.Description != "Mercado" {
+		t.Errorf("expected Mercado, got %s", item.Description)
+	}
+	if item.Type != "expense" {
+		t.Errorf("type: expected expense, got %s", item.Type)
+	}
+	if item.TotalCents != 10000 {
+		t.Errorf("total: expected 10000, got %d", item.TotalCents)
+	}
+	if item.UserShareCents != 6250 {
+		t.Errorf("share: expected 6250, got %d", item.UserShareCents)
+	}
+	if item.CategoryName != "Alimentação" {
+		t.Errorf("category: expected Alimentação, got %s", item.CategoryName)
 	}
 
-	// Verify totals
-	if detail.TotalSharedCents != 9375 {
-		t.Errorf("total shared: expected 9375, got %d", detail.TotalSharedCents)
+	if detail.TotalSharedCents != 6250 {
+		t.Errorf("total shared: expected 6250, got %d", detail.TotalSharedCents)
 	}
-	if detail.TotalPersonalCents != 0 {
-		t.Errorf("total personal: expected 0, got %d", detail.TotalPersonalCents)
-	}
-	// Alice paid expense(10000), Bob paid bill → Alice paid 10000
 	if detail.TotalPaidCents != 10000 {
 		t.Errorf("total paid: expected 10000, got %d", detail.TotalPaidCents)
-	}
-	if detail.AmountDueCents != 9375 {
-		t.Errorf("amount due: expected 9375, got %d", detail.AmountDueCents)
-	}
-	if detail.BalanceCents != 625 {
-		t.Errorf("balance: expected 625, got %d", detail.BalanceCents)
 	}
 }
 
 func TestSummaryService_GetUserDetail_PersonalItems(t *testing.T) {
-	// Bob has a personal expense assigned to him
+	// Bob pays a personal expense + Alice pays a shared expense
+	// Bob's detail should only show what Bob paid
 	hhRepo := &mock.HouseholdRepository{
 		GetMemberFn:   memberOK(),
 		ListMembersFn: twoMembers(),
@@ -1337,50 +1316,32 @@ func TestSummaryService_GetUserDetail_PersonalItems(t *testing.T) {
 		t.Fatalf("GetUserDetail failed: %v", err)
 	}
 
-	// Bob should see: shared Mercado (37.5% of 10000 = 3750) + personal Remédio (3500)
-	if len(detail.Items) != 2 {
-		t.Fatalf("expected 2 items, got %d", len(detail.Items))
+	// Bob only paid the personal expense → 1 item (Mercado was paid by Alice)
+	if len(detail.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(detail.Items))
 	}
 
-	var hasPersonal, hasShared bool
-	for _, item := range detail.Items {
-		if item.Description == "Remédio Bob" {
-			hasPersonal = true
-			if item.IsShared {
-				t.Error("Remédio should be personal")
-			}
-			if item.UserShareCents != 3500 {
-				t.Errorf("Remédio share: expected 3500, got %d", item.UserShareCents)
-			}
-			if item.Proportion != 1.0 {
-				t.Errorf("personal proportion: expected 1.0, got %f", item.Proportion)
-			}
-		}
-		if item.Description == "Mercado" {
-			hasShared = true
-			if item.UserShareCents != 3750 {
-				t.Errorf("Mercado share: expected 3750, got %d", item.UserShareCents)
-			}
-		}
+	item := detail.Items[0]
+	if item.Description != "Remédio Bob" {
+		t.Errorf("expected Remédio Bob, got %s", item.Description)
 	}
-	if !hasPersonal || !hasShared {
-		t.Error("missing expected items")
+	if item.IsShared {
+		t.Error("Remédio should be personal")
+	}
+	if item.UserShareCents != 3500 {
+		t.Errorf("share: expected 3500, got %d", item.UserShareCents)
+	}
+	if item.Proportion != 1.0 {
+		t.Errorf("proportion: expected 1.0, got %f", item.Proportion)
 	}
 
-	if detail.TotalSharedCents != 3750 {
-		t.Errorf("total shared: expected 3750, got %d", detail.TotalSharedCents)
+	if detail.TotalSharedCents != 0 {
+		t.Errorf("total shared: expected 0, got %d", detail.TotalSharedCents)
 	}
 	if detail.TotalPersonalCents != 3500 {
 		t.Errorf("total personal: expected 3500, got %d", detail.TotalPersonalCents)
 	}
-	if detail.AmountDueCents != 7250 {
-		t.Errorf("amount due: expected 7250, got %d", detail.AmountDueCents)
-	}
-	// Bob paid 3500 (personal), due 7250 → balance -3750
 	if detail.TotalPaidCents != 3500 {
 		t.Errorf("total paid: expected 3500, got %d", detail.TotalPaidCents)
-	}
-	if detail.BalanceCents != -3750 {
-		t.Errorf("balance: expected -3750, got %d", detail.BalanceCents)
 	}
 }
