@@ -171,3 +171,39 @@ type ExpenseResponse struct {
 	PaidByName   string `json:"paid_by_name,omitempty"`
 	AssignedTo   string `json:"assigned_to,omitempty"`
 }
+
+// Summary DTOs
+
+type SummaryItemResponse struct {
+	UserID             string  `json:"user_id"`
+	UserName           string  `json:"user_name"`
+	SalaryCents        int64   `json:"salary_cents"`
+	Proportion         float64 `json:"proportion"`
+	TotalSharedCents   int64   `json:"total_shared_cents"`
+	TotalPersonalCents int64   `json:"total_personal_cents"`
+	AmountDueCents     int64   `json:"amount_due_cents"`
+}
+
+type SummaryResponse struct {
+	ID               string                `json:"id"`
+	HouseholdID      string                `json:"household_id"`
+	Year             int                   `json:"year"`
+	Month            int                   `json:"month"`
+	TotalSharedCents int64                 `json:"total_shared_cents"`
+	TotalAllCents    int64                 `json:"total_all_cents"`
+	GeneratedAt      string                `json:"generated_at"`
+	Items            []SummaryItemResponse `json:"items"`
+}
+
+type DashboardResponse struct {
+	HouseholdName      string                `json:"household_name"`
+	Year               int                   `json:"year"`
+	Month              int                   `json:"month"`
+	TotalExpenses      int64                 `json:"total_expenses"`
+	TotalFixedBills    int64                 `json:"total_fixed_bills"`
+	TotalShared        int64                 `json:"total_shared"`
+	TotalPersonal      int64                 `json:"total_personal"`
+	ExpenseCount       int                   `json:"expense_count"`
+	FixedBillCount     int                   `json:"fixed_bill_count"`
+	MemberBreakdown    []SummaryItemResponse `json:"member_breakdown"`
+}

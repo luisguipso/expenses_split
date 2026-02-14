@@ -93,3 +93,13 @@ type ExpenseService interface {
 	Update(ctx context.Context, id string, input UpdateExpenseInput, userID string) (*Expense, error)
 	Delete(ctx context.Context, id, userID string) error
 }
+
+type SummaryRepository interface {
+	Upsert(ctx context.Context, summary *MonthlySummary) error
+	FindByMonth(ctx context.Context, householdID string, year, month int) (*MonthlySummary, error)
+}
+
+type SummaryService interface {
+	Generate(ctx context.Context, householdID string, year, month int, userID string) (*SummaryResponse, error)
+	GetDashboard(ctx context.Context, householdID, userID string) (*DashboardResponse, error)
+}

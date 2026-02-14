@@ -16,4 +16,6 @@ var (
 	ErrCategoryExists     = errors.New("category already exists")
 	ErrFixedBillNotFound  = errors.New("fixed bill not found")
 	ErrExpenseNotFound    = errors.New("expense not found")
+	ErrSummaryNotFound    = errors.New("summary not found")
+	ErrNoMembersWithSalary = errors.New("no members with salary configured")
 )

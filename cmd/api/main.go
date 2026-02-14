@@ -38,6 +38,7 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	fixedBillRepo := repository.NewFixedBillRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db)
+	summaryRepo := repository.NewSummaryRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	// Services
@@ -47,6 +48,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
 	expenseService := service.NewExpenseService(expenseRepo, householdRepo)
+	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
@@ -54,6 +56,7 @@ func main() {
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	fixedBillHandler := handler.NewFixedBillHandler(fixedBillService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
+	summaryHandler := handler.NewSummaryHandler(summaryService)
 	authMW := appMiddleware.JWTAuth(tokenService)
 
 	// Router
@@ -74,6 +77,7 @@ func main() {
 	handler.RegisterCategoryRoutes(e, categoryHandler, authMW)
 	handler.RegisterFixedBillRoutes(e, fixedBillHandler, authMW)
 	handler.RegisterExpenseRoutes(e, expenseHandler, authMW)
+	handler.RegisterSummaryRoutes(e, summaryHandler, authMW)
 
 	port := cfg.Port
 	if port == "" {

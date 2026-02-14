@@ -306,3 +306,31 @@ func (m *ExpenseService) Update(ctx context.Context, id string, input domain.Upd
 func (m *ExpenseService) Delete(ctx context.Context, id, userID string) error {
 	return m.DeleteFn(ctx, id, userID)
 }
+
+// SummaryRepository
+
+type SummaryRepository struct {
+	UpsertFn      func(ctx context.Context, summary *domain.MonthlySummary) error
+	FindByMonthFn func(ctx context.Context, householdID string, year, month int) (*domain.MonthlySummary, error)
+}
+
+func (m *SummaryRepository) Upsert(ctx context.Context, summary *domain.MonthlySummary) error {
+	return m.UpsertFn(ctx, summary)
+}
+func (m *SummaryRepository) FindByMonth(ctx context.Context, householdID string, year, month int) (*domain.MonthlySummary, error) {
+	return m.FindByMonthFn(ctx, householdID, year, month)
+}
+
+// SummaryService
+
+type SummaryService struct {
+	GenerateFn     func(ctx context.Context, householdID string, year, month int, userID string) (*domain.SummaryResponse, error)
+	GetDashboardFn func(ctx context.Context, householdID, userID string) (*domain.DashboardResponse, error)
+}
+
+func (m *SummaryService) Generate(ctx context.Context, householdID string, year, month int, userID string) (*domain.SummaryResponse, error) {
+	return m.GenerateFn(ctx, householdID, year, month, userID)
+}
+func (m *SummaryService) GetDashboard(ctx context.Context, householdID, userID string) (*domain.DashboardResponse, error) {
+	return m.GetDashboardFn(ctx, householdID, userID)
+}
