@@ -210,6 +210,28 @@ type SummaryResponse struct {
 	Settlements      []SettlementTransfer  `json:"settlements"`
 }
 
+type SummaryDetailItem struct {
+	Description    string  `json:"description"`
+	Type           string  `json:"type"` // "fixed_bill" or "expense"
+	CategoryName   string  `json:"category_name,omitempty"`
+	TotalCents     int64   `json:"total_cents"`
+	UserShareCents int64   `json:"user_share_cents"`
+	Proportion     float64 `json:"proportion"`
+	IsShared       bool    `json:"is_shared"`
+	PaidByName     string  `json:"paid_by_name,omitempty"`
+}
+
+type SummaryDetailResponse struct {
+	UserID             string              `json:"user_id"`
+	UserName           string              `json:"user_name"`
+	Items              []SummaryDetailItem `json:"items"`
+	TotalSharedCents   int64               `json:"total_shared_cents"`
+	TotalPersonalCents int64               `json:"total_personal_cents"`
+	AmountDueCents     int64               `json:"amount_due_cents"`
+	TotalPaidCents     int64               `json:"total_paid_cents"`
+	BalanceCents       int64               `json:"balance_cents"`
+}
+
 type DashboardResponse struct {
 	HouseholdName      string                `json:"household_name"`
 	Year               int                   `json:"year"`

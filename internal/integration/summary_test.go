@@ -289,3 +289,125 @@ func TestSummary_BalancesSumToZero(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryDetail_Breakdown(t *testing.T) {
+	alice, bob, hhID := setupTwoMemberHousehold(t)
+
+	// Create a category
+	resp := doJSON(t, http.MethodPost, fmt.Sprintf("/households/%s/categories", hhID),
+		domain.CreateCategoryInput{Name: "Moradia", Icon: "🏠"},
+		alice.AccessToken, http.StatusCreated)
+	var cat map[string]interface{}
+	decodeJSON(t, resp, &cat)
+	catID := cat["id"].(string)
+
+	// Alice pays shared fixed bill R$2000
+	doJSON(t, http.MethodPost, fmt.Sprintf("/households/%s/bills", hhID),
+		domain.CreateFixedBillInput{
+			Description: "Aluguel",
+			AmountCents: 200000,
+			DueDay:      5,
+			IsShared:    true,
+			CategoryID:  catID,
+			PaidBy:      alice.ID,
+		}, alice.AccessToken, http.StatusCreated)
+
+	// Bob pays shared expense R$500
+	doJSON(t, http.MethodPost, fmt.Sprintf("/households/%s/expenses", hhID),
+		domain.CreateExpenseInput{
+			Description: "Mercado",
+			AmountCents: 50000,
+			ExpenseDate: "2024-06-10",
+			IsShared:    true,
+		}, bob.AccessToken, http.StatusCreated)
+
+	// Bob personal expense R$35
+	doJSON(t, http.MethodPost, fmt.Sprintf("/households/%s/expenses", hhID),
+		domain.CreateExpenseInput{
+			Description: "Farmácia Bob",
+			AmountCents: 3500,
+			ExpenseDate: "2024-06-12",
+			IsShared:    false,
+			AssignedTo:  bob.ID,
+		}, bob.AccessToken, http.StatusCreated)
+
+	// Get Alice detail
+	resp = doGet(t,
+		fmt.Sprintf("/households/%s/summary/detail?year=2024&month=6&user_id=%s", hhID, alice.ID),
+		alice.AccessToken, http.StatusOK)
+
+	var detail map[string]interface{}
+	decodeJSON(t, resp, &detail)
+
+	if detail["user_name"] != "Alice" {
+		t.Errorf("expected Alice, got %v", detail["user_name"])
+	}
+
+	items := detail["items"].([]interface{})
+	// Alice should see: Aluguel (shared) + Mercado (shared) = 2 items, no personal
+	if len(items) != 2 {
+		t.Fatalf("Alice: expected 2 items, got %d", len(items))
+	}
+
+	for _, raw := range items {
+		item := raw.(map[string]interface{})
+		desc := item["description"].(string)
+		share := int64(item["user_share_cents"].(float64))
+		total := int64(item["total_cents"].(float64))
+
+		switch desc {
+		case "Aluguel":
+			// 62.5% of 200000 = 125000
+			if share != 125000 {
+				t.Errorf("Aluguel share: expected 125000, got %d", share)
+			}
+			if total != 200000 {
+				t.Errorf("Aluguel total: expected 200000, got %d", total)
+			}
+			if item["type"] != "fixed_bill" {
+				t.Errorf("Aluguel type: expected fixed_bill, got %v", item["type"])
+			}
+			if item["category_name"] != "Moradia" {
+				t.Errorf("Aluguel category: expected Moradia, got %v", item["category_name"])
+			}
+		case "Mercado":
+			// 62.5% of 50000 = 31250
+			if share != 31250 {
+				t.Errorf("Mercado share: expected 31250, got %d", share)
+			}
+		}
+	}
+
+	// Totals must match summary row
+	amountDue := int64(detail["amount_due_cents"].(float64))
+	totalShared := int64(detail["total_shared_cents"].(float64))
+	totalPersonal := int64(detail["total_personal_cents"].(float64))
+
+	if totalShared != 156250 { // 125000 + 31250
+		t.Errorf("total shared: expected 156250, got %d", totalShared)
+	}
+	if totalPersonal != 0 {
+		t.Errorf("total personal: expected 0, got %d", totalPersonal)
+	}
+	if amountDue != 156250 {
+		t.Errorf("amount due: expected 156250, got %d", amountDue)
+	}
+
+	// Now get Bob detail — should have 3 items (2 shared + 1 personal)
+	resp = doGet(t,
+		fmt.Sprintf("/households/%s/summary/detail?year=2024&month=6&user_id=%s", hhID, bob.ID),
+		alice.AccessToken, http.StatusOK)
+
+	var bobDetail map[string]interface{}
+	decodeJSON(t, resp, &bobDetail)
+
+	bobItems := bobDetail["items"].([]interface{})
+	if len(bobItems) != 3 {
+		t.Fatalf("Bob: expected 3 items, got %d", len(bobItems))
+	}
+
+	bobPersonal := int64(bobDetail["total_personal_cents"].(float64))
+	if bobPersonal != 3500 {
+		t.Errorf("Bob personal: expected 3500, got %d", bobPersonal)
+	}
+}

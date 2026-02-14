@@ -102,4 +102,5 @@ type SummaryRepository interface {
 type SummaryService interface {
 	Generate(ctx context.Context, householdID string, year, month int, userID string) (*SummaryResponse, error)
 	GetDashboard(ctx context.Context, householdID, userID string) (*DashboardResponse, error)
+	GetUserDetail(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*SummaryDetailResponse, error)
 }

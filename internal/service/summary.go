@@ -311,3 +311,140 @@ func (s *summaryService) checkMembership(ctx context.Context, householdID, userI
 	}
 	return nil
 }
+
+func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*domain.SummaryDetailResponse, error) {
+	if err := s.checkMembership(ctx, householdID, requestingUserID); err != nil {
+		return nil, err
+	}
+
+	members, err := s.householdRepo.ListMembers(ctx, householdID)
+	if err != nil {
+		return nil, fmt.Errorf("list members: %w", err)
+	}
+
+	var totalSalary int64
+	var targetMember *domain.HouseholdMember
+	for i, m := range members {
+		totalSalary += m.SalaryCents
+		if m.UserID == targetUserID {
+			targetMember = &members[i]
+		}
+	}
+	if totalSalary == 0 {
+		return nil, domain.ErrNoMembersWithSalary
+	}
+	if targetMember == nil {
+		return nil, domain.ErrNotMember
+	}
+
+	proportion := float64(targetMember.SalaryCents) / float64(totalSalary)
+
+	// Build name lookup for paid_by
+	nameByID := make(map[string]string, len(members))
+	for _, m := range members {
+		nameByID[m.UserID] = m.UserName
+	}
+
+	expenses, err := s.expenseRepo.ListByHousehold(ctx, householdID, domain.ExpenseFilter{
+		Year: year, Month: month,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list expenses: %w", err)
+	}
+
+	allBills, err := s.fixedBillRepo.ListByHousehold(ctx, householdID)
+	if err != nil {
+		return nil, fmt.Errorf("list fixed bills: %w", err)
+	}
+
+	var items []domain.SummaryDetailItem
+	var totalShared, totalPersonal, totalPaid int64
+
+	// Fixed bills
+	for _, b := range allBills {
+		if !b.IsActive {
+			continue
+		}
+		if b.IsShared {
+			shareCents := int64(math.Round(float64(b.AmountCents) * proportion))
+			items = append(items, domain.SummaryDetailItem{
+				Description:    b.Description,
+				Type:           "fixed_bill",
+				CategoryName:   b.CategoryName,
+				TotalCents:     b.AmountCents,
+				UserShareCents: shareCents,
+				Proportion:     proportion,
+				IsShared:       true,
+				PaidByName:     nameByID[b.PaidBy],
+			})
+			totalShared += shareCents
+		} else if b.AssignedTo == targetUserID {
+			items = append(items, domain.SummaryDetailItem{
+				Description:    b.Description,
+				Type:           "fixed_bill",
+				CategoryName:   b.CategoryName,
+				TotalCents:     b.AmountCents,
+				UserShareCents: b.AmountCents,
+				Proportion:     1.0,
+				IsShared:       false,
+				PaidByName:     nameByID[b.PaidBy],
+			})
+			totalPersonal += b.AmountCents
+		}
+		if b.PaidBy == targetUserID {
+			totalPaid += b.AmountCents
+		}
+	}
+
+	// Expenses
+	for _, e := range expenses {
+		if e.IsShared {
+			shareCents := int64(math.Round(float64(e.AmountCents) * proportion))
+			items = append(items, domain.SummaryDetailItem{
+				Description:    e.Description,
+				Type:           "expense",
+				CategoryName:   e.CategoryName,
+				TotalCents:     e.AmountCents,
+				UserShareCents: shareCents,
+				Proportion:     proportion,
+				IsShared:       true,
+				PaidByName:     nameByID[e.PaidBy],
+			})
+			totalShared += shareCents
+		} else {
+			assignee := e.AssignedTo
+			if assignee == "" {
+				assignee = e.PaidBy
+			}
+			if assignee == targetUserID {
+				items = append(items, domain.SummaryDetailItem{
+					Description:    e.Description,
+					Type:           "expense",
+					CategoryName:   e.CategoryName,
+					TotalCents:     e.AmountCents,
+					UserShareCents: e.AmountCents,
+					Proportion:     1.0,
+					IsShared:       false,
+					PaidByName:     nameByID[e.PaidBy],
+				})
+				totalPersonal += e.AmountCents
+			}
+		}
+		if e.PaidBy == targetUserID {
+			totalPaid += e.AmountCents
+		}
+	}
+
+	amountDue := totalShared + totalPersonal
+
+	return &domain.SummaryDetailResponse{
+		UserID:             targetUserID,
+		UserName:           targetMember.UserName,
+		Items:              items,
+		TotalSharedCents:   totalShared,
+		TotalPersonalCents: totalPersonal,
+		AmountDueCents:     amountDue,
+		TotalPaidCents:     totalPaid,
+		BalanceCents:       totalPaid - amountDue,
+	}, nil
+}

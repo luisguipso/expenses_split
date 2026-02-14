@@ -324,8 +324,9 @@ func (m *SummaryRepository) FindByMonth(ctx context.Context, householdID string,
 // SummaryService
 
 type SummaryService struct {
-	GenerateFn     func(ctx context.Context, householdID string, year, month int, userID string) (*domain.SummaryResponse, error)
-	GetDashboardFn func(ctx context.Context, householdID, userID string) (*domain.DashboardResponse, error)
+	GenerateFn      func(ctx context.Context, householdID string, year, month int, userID string) (*domain.SummaryResponse, error)
+	GetDashboardFn  func(ctx context.Context, householdID, userID string) (*domain.DashboardResponse, error)
+	GetUserDetailFn func(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*domain.SummaryDetailResponse, error)
 }
 
 func (m *SummaryService) Generate(ctx context.Context, householdID string, year, month int, userID string) (*domain.SummaryResponse, error) {
@@ -333,4 +334,7 @@ func (m *SummaryService) Generate(ctx context.Context, householdID string, year,
 }
 func (m *SummaryService) GetDashboard(ctx context.Context, householdID, userID string) (*domain.DashboardResponse, error) {
 	return m.GetDashboardFn(ctx, householdID, userID)
+}
+func (m *SummaryService) GetUserDetail(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*domain.SummaryDetailResponse, error) {
+	return m.GetUserDetailFn(ctx, householdID, year, month, targetUserID, requestingUserID)
 }

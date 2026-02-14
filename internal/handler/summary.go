@@ -63,9 +63,45 @@ func (h *SummaryHandler) GetDashboard(c echo.Context) error {
 	return c.JSON(http.StatusOK, dashboard)
 }
 
+func (h *SummaryHandler) GetSummaryDetail(c echo.Context) error {
+	householdID := c.Param("householdId")
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
+
+	targetUserID := c.QueryParam("user_id")
+	if targetUserID == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "user_id query param is required")
+	}
+
+	yearStr := c.QueryParam("year")
+	monthStr := c.QueryParam("month")
+	if yearStr == "" || monthStr == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "year and month query params are required")
+	}
+
+	year, err := strconv.Atoi(yearStr)
+	if err != nil || year < 2000 || year > 2100 {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid year")
+	}
+	month, err := strconv.Atoi(monthStr)
+	if err != nil || month < 1 || month > 12 {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid month")
+	}
+
+	detail, err := h.svc.GetUserDetail(c.Request().Context(), householdID, year, month, targetUserID, userID)
+	if err != nil {
+		return summaryError(err)
+	}
+
+	return c.JSON(http.StatusOK, detail)
+}
+
 func RegisterSummaryRoutes(e *echo.Echo, h *SummaryHandler, authMiddleware echo.MiddlewareFunc) {
 	g := e.Group("/households/:householdId/summary", authMiddleware)
 	g.GET("", h.GetSummary)
+	g.GET("/detail", h.GetSummaryDetail)
 
 	d := e.Group("/households/:householdId/dashboard", authMiddleware)
 	d.GET("", h.GetDashboard)

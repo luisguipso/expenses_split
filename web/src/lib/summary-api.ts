@@ -45,6 +45,28 @@ export interface DashboardResponse {
   member_breakdown: SummaryItem[];
 }
 
+export interface SummaryDetailItem {
+  description: string;
+  type: 'fixed_bill' | 'expense';
+  category_name?: string;
+  total_cents: number;
+  user_share_cents: number;
+  proportion: number;
+  is_shared: boolean;
+  paid_by_name?: string;
+}
+
+export interface SummaryDetailResponse {
+  user_id: string;
+  user_name: string;
+  items: SummaryDetailItem[];
+  total_shared_cents: number;
+  total_personal_cents: number;
+  amount_due_cents: number;
+  total_paid_cents: number;
+  balance_cents: number;
+}
+
 export const summaryApi = {
   getDashboard: (householdId: string) =>
     api
@@ -55,6 +77,13 @@ export const summaryApi = {
     api
       .get<SummaryResponse>(
         `/households/${householdId}/summary?year=${year}&month=${month}`
+      )
+      .then((r) => r.data),
+
+  getUserDetail: (householdId: string, year: number, month: number, userId: string) =>
+    api
+      .get<SummaryDetailResponse>(
+        `/households/${householdId}/summary/detail?year=${year}&month=${month}&user_id=${userId}`
       )
       .then((r) => r.data),
 };

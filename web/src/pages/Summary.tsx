@@ -4,6 +4,7 @@ import { summaryApi, SummaryResponse } from '../lib/summary-api';
 import Layout from '../components/Layout';
 import Spinner from '../components/Spinner';
 import ErrorAlert from '../components/ErrorAlert';
+import SummaryDetailModal from '../components/SummaryDetailModal';
 
 function formatCurrency(cents: number): string {
   return ((cents ?? 0) / 100).toLocaleString('pt-BR', {
@@ -25,6 +26,7 @@ export default function Summary() {
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
 
   const fetchSummary = async () => {
     if (!activeHousehold) return;
@@ -118,7 +120,11 @@ export default function Summary() {
             {/* Mobile cards */}
             <div className="divide-y divide-gray-200 sm:hidden">
               {summary.items.map((item) => (
-                <div key={item.user_id} className="px-4 py-4 space-y-1">
+                <div
+                  key={item.user_id}
+                  className="px-4 py-4 space-y-1 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => setSelectedUser({ id: item.user_id, name: item.user_name })}
+                >
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-900">{item.user_name}</span>
                     <span className="text-sm text-gray-500">{(item.proportion * 100).toFixed(1)}%</span>
@@ -184,7 +190,11 @@ export default function Summary() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {summary.items.map((item) => (
-                  <tr key={item.user_id}>
+                  <tr
+                    key={item.user_id}
+                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => setSelectedUser({ id: item.user_id, name: item.user_name })}
+                  >
                     <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
                       {item.user_name}
                     </td>
@@ -245,6 +255,17 @@ export default function Summary() {
           </p>
         </>
       ) : null}
+
+      {selectedUser && activeHousehold && (
+        <SummaryDetailModal
+          householdId={activeHousehold.id}
+          year={year}
+          month={month}
+          userId={selectedUser.id}
+          userName={selectedUser.name}
+          onClose={() => setSelectedUser(null)}
+        />
+      )}
     </Layout>
   );
 }
