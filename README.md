@@ -11,14 +11,24 @@ Aplicação web para divisão de despesas domésticas de forma proporcional ao s
 - Cálculo de saldo: quem deve pagar e quem deve receber
 - Acertos financeiros otimizados (mínimo de transferências)
 
-## Pré-requisitos
+## Início rápido (um comando)
 
-- Go 1.23+
+Precisa apenas de [Docker](https://docs.docker.com/get-docker/) instalado:
+
+```bash
+docker compose up
+```
+
+Acesse `http://localhost:8080`. O banco, backend e frontend sobem juntos.
+
+## Pré-requisitos (desenvolvimento local)
+
+- Go 1.25+
 - Node.js 18+
 - Docker e Docker Compose
 - PostgreSQL 16 (via Docker)
 
-## Setup
+## Setup (desenvolvimento local)
 
 ### 1. Subir o banco de dados
 

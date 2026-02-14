@@ -82,6 +82,16 @@ func main() {
 	handler.RegisterExpenseRoutes(e, expenseHandler, authMW)
 	handler.RegisterSummaryRoutes(e, summaryHandler, authMW)
 
+	// Serve frontend SPA if dist/ directory exists
+	if _, err := os.Stat("dist"); err == nil {
+		e.Use(middleware.StaticWithConfig(middleware.StaticConfig{
+			Root:   "dist",
+			Index:  "index.html",
+			HTML5:  true,
+			Browse: false,
+		}))
+	}
+
 	port := cfg.Port
 	if port == "" {
 		port = "8080"
