@@ -63,9 +63,11 @@ func (h *SummaryHandler) GetDashboard(c echo.Context) error {
 }
 
 func RegisterSummaryRoutes(e *echo.Echo, h *SummaryHandler, authMiddleware echo.MiddlewareFunc) {
-	g := e.Group("/households/:householdId", authMiddleware)
-	g.GET("/summary", h.GetSummary)
-	g.GET("/dashboard", h.GetDashboard)
+	g := e.Group("/households/:householdId/summary", authMiddleware)
+	g.GET("", h.GetSummary)
+
+	d := e.Group("/households/:householdId/dashboard", authMiddleware)
+	d.GET("", h.GetDashboard)
 }
 
 func summaryError(err error) *echo.HTTPError {
