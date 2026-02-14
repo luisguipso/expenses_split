@@ -4,45 +4,29 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/lguilherme/contas/internal/service"
 )
 
 const testSecret = "test-secret-for-middleware"
 
-func makeTestAuthService() *service.AuthService {
-	return service.NewAuthService(nil, testSecret)
+func makeTestTokenService() *service.JWTTokenService {
+	return service.NewJWTTokenService(testSecret)
 }
 
-func generateTestToken(userID, email string, expired bool) string {
-	expiry := time.Now().Add(15 * time.Minute)
-	if expired {
-		expiry = time.Now().Add(-1 * time.Hour)
-	}
-
-	claims := &service.Claims{
-		UserID: userID,
-		Email:  email,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expiry),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Subject:   userID,
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, _ := token.SignedString([]byte(testSecret))
-	return tokenStr
+func generateTestToken(userID, email string) string {
+	svc := makeTestTokenService()
+	tokens, _ := svc.Generate(userID, email)
+	return tokens.AccessToken
 }
 
 func TestJWTAuth_ValidToken(t *testing.T) {
 	e := echo.New()
-	authSvc := makeTestAuthService()
-	mw := JWTAuth(authSvc)
+	tokenSvc := makeTestTokenService()
+	mw := JWTAuth(tokenSvc)
 
-	token := generateTestToken("user-123", "test@example.com", false)
+	token := generateTestToken("user-123", "test@example.com")
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -70,8 +54,8 @@ func TestJWTAuth_ValidToken(t *testing.T) {
 
 func TestJWTAuth_MissingHeader(t *testing.T) {
 	e := echo.New()
-	authSvc := makeTestAuthService()
-	mw := JWTAuth(authSvc)
+	tokenSvc := makeTestTokenService()
+	mw := JWTAuth(tokenSvc)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
@@ -93,8 +77,8 @@ func TestJWTAuth_MissingHeader(t *testing.T) {
 
 func TestJWTAuth_InvalidFormat(t *testing.T) {
 	e := echo.New()
-	authSvc := makeTestAuthService()
-	mw := JWTAuth(authSvc)
+	tokenSvc := makeTestTokenService()
+	mw := JWTAuth(tokenSvc)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "InvalidFormat")
@@ -117,13 +101,11 @@ func TestJWTAuth_InvalidFormat(t *testing.T) {
 
 func TestJWTAuth_ExpiredToken(t *testing.T) {
 	e := echo.New()
-	authSvc := makeTestAuthService()
-	mw := JWTAuth(authSvc)
-
-	token := generateTestToken("user-123", "test@example.com", true)
+	tokenSvc := makeTestTokenService()
+	mw := JWTAuth(tokenSvc)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer expired-token-string")
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
@@ -143,8 +125,8 @@ func TestJWTAuth_ExpiredToken(t *testing.T) {
 
 func TestJWTAuth_InvalidToken(t *testing.T) {
 	e := echo.New()
-	authSvc := makeTestAuthService()
-	mw := JWTAuth(authSvc)
+	tokenSvc := makeTestTokenService()
+	mw := JWTAuth(tokenSvc)
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer invalid-token-string")

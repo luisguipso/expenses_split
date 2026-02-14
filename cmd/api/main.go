@@ -32,6 +32,19 @@ func main() {
 	}
 	defer db.Close()
 
+	// Repositories
+	userRepo := repository.NewUserRepository(db)
+	healthChecker := repository.NewHealthChecker(db)
+
+	// Services
+	tokenService := service.NewJWTTokenService(cfg.JWTSecret)
+	authService := service.NewAuthService(userRepo, tokenService)
+
+	// Handlers
+	authHandler := handler.NewAuthHandler(authService)
+	authMW := appMiddleware.JWTAuth(tokenService)
+
+	// Router
 	e := echo.New()
 	e.HideBanner = true
 
@@ -43,12 +56,7 @@ func main() {
 		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}))
 
-	handler.RegisterHealthRoutes(e, db)
-
-	userRepo := repository.NewUserRepository(db)
-	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
-	authHandler := handler.NewAuthHandler(authService)
-	authMW := appMiddleware.JWTAuth(authService)
+	handler.RegisterHealthRoutes(e, healthChecker)
 	handler.RegisterAuthRoutes(e, authHandler, authMW)
 
 	port := cfg.Port

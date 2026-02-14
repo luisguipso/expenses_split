@@ -5,19 +5,19 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/lguilherme/contas/internal/service"
+	"github.com/lguilherme/contas/internal/domain"
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
+	auth domain.AuthService
 }
 
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(auth domain.AuthService) *AuthHandler {
+	return &AuthHandler{auth: auth}
 }
 
 func (h *AuthHandler) Register(c echo.Context) error {
-	var input service.RegisterInput
+	var input domain.RegisterInput
 	if err := c.Bind(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
@@ -30,26 +30,22 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 6 characters")
 	}
 
-	user, tokens, err := h.authService.Register(c.Request().Context(), input)
+	user, tokens, err := h.auth.Register(c.Request().Context(), input)
 	if err != nil {
-		if errors.Is(err, service.ErrEmailAlreadyTaken) {
+		if errors.Is(err, domain.ErrEmailExists) {
 			return echo.NewHTTPError(http.StatusConflict, "email already taken")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to register")
 	}
 
-	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":    user.ID,
-			"name":  user.Name,
-			"email": user.Email,
-		},
-		"tokens": tokens,
+	return c.JSON(http.StatusCreated, domain.AuthResponse{
+		User:   toUserResponse(user),
+		Tokens: tokens,
 	})
 }
 
 func (h *AuthHandler) Login(c echo.Context) error {
-	var input service.LoginInput
+	var input domain.LoginInput
 	if err := c.Bind(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
@@ -58,21 +54,17 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "email and password are required")
 	}
 
-	user, tokens, err := h.authService.Login(c.Request().Context(), input)
+	user, tokens, err := h.auth.Login(c.Request().Context(), input)
 	if err != nil {
-		if errors.Is(err, service.ErrInvalidCredentials) {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
 			return echo.NewHTTPError(http.StatusUnauthorized, "invalid email or password")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to login")
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":    user.ID,
-			"name":  user.Name,
-			"email": user.Email,
-		},
-		"tokens": tokens,
+	return c.JSON(http.StatusOK, domain.AuthResponse{
+		User:   toUserResponse(user),
+		Tokens: tokens,
 	})
 }
 
@@ -88,30 +80,36 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "refresh_token is required")
 	}
 
-	tokens, err := h.authService.RefreshToken(body.RefreshToken)
+	tokens, err := h.auth.RefreshToken(body.RefreshToken)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired refresh token")
 	}
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"tokens": tokens,
-	})
+	return c.JSON(http.StatusOK, domain.TokenResponse{Tokens: tokens})
 }
 
 func (h *AuthHandler) Me(c echo.Context) error {
 	userID := c.Get("user_id").(string)
 	email := c.Get("user_email").(string)
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"user_id": userID,
-		"email":   email,
+	return c.JSON(http.StatusOK, domain.MeResponse{
+		UserID: userID,
+		Email:  email,
 	})
 }
 
-func RegisterAuthRoutes(e *echo.Echo, authHandler *AuthHandler, authMiddleware echo.MiddlewareFunc) {
+func RegisterAuthRoutes(e *echo.Echo, h *AuthHandler, authMiddleware echo.MiddlewareFunc) {
 	auth := e.Group("/auth")
-	auth.POST("/register", authHandler.Register)
-	auth.POST("/login", authHandler.Login)
-	auth.POST("/refresh", authHandler.Refresh)
-	auth.GET("/me", authHandler.Me, authMiddleware)
+	auth.POST("/register", h.Register)
+	auth.POST("/login", h.Login)
+	auth.POST("/refresh", h.Refresh)
+	auth.GET("/me", h.Me, authMiddleware)
+}
+
+func toUserResponse(u *domain.User) domain.UserResponse {
+	return domain.UserResponse{
+		ID:    u.ID,
+		Name:  u.Name,
+		Email: u.Email,
+	}
 }

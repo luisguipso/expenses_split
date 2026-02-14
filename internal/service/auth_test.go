@@ -5,25 +5,17 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/lguilherme/contas/internal/model"
+	"github.com/lguilherme/contas/internal/domain"
 )
 
 const testSecret = "test-secret-key-for-testing"
 
-func TestGenerateAndValidateToken(t *testing.T) {
-	s := &AuthService{jwtSecret: []byte(testSecret)}
+func TestTokenService_GenerateAndValidate(t *testing.T) {
+	svc := NewJWTTokenService(testSecret)
 
-	user := &model.User{
-		Email: "test@example.com",
-	}
-	// Set a valid UUID
-	user.ID.Bytes = [16]byte{0xa0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
-	user.ID.Valid = true
-
-	tokens, err := s.generateTokenPair(user)
+	tokens, err := svc.Generate("user-123", "test@example.com")
 	if err != nil {
-		t.Fatalf("generateTokenPair failed: %v", err)
+		t.Fatalf("Generate failed: %v", err)
 	}
 
 	if tokens.AccessToken == "" {
@@ -37,41 +29,40 @@ func TestGenerateAndValidateToken(t *testing.T) {
 	}
 
 	// Validate access token
-	claims, err := s.ValidateToken(tokens.AccessToken)
+	claims, err := svc.Validate(tokens.AccessToken)
 	if err != nil {
-		t.Fatalf("ValidateToken failed: %v", err)
+		t.Fatalf("Validate failed: %v", err)
 	}
 	if claims.Email != "test@example.com" {
 		t.Errorf("expected email test@example.com, got %s", claims.Email)
 	}
-	if claims.UserID == "" {
-		t.Error("user_id is empty")
+	if claims.UserID != "user-123" {
+		t.Errorf("expected user_id user-123, got %s", claims.UserID)
 	}
 
 	// Validate refresh token
-	refreshClaims, err := s.ValidateToken(tokens.RefreshToken)
+	refreshClaims, err := svc.Validate(tokens.RefreshToken)
 	if err != nil {
-		t.Fatalf("ValidateToken (refresh) failed: %v", err)
+		t.Fatalf("Validate (refresh) failed: %v", err)
 	}
 	if refreshClaims.Email != "test@example.com" {
 		t.Errorf("expected email test@example.com, got %s", refreshClaims.Email)
 	}
 }
 
-func TestValidateToken_InvalidToken(t *testing.T) {
-	s := &AuthService{jwtSecret: []byte(testSecret)}
+func TestTokenService_Validate_InvalidToken(t *testing.T) {
+	svc := NewJWTTokenService(testSecret)
 
-	_, err := s.ValidateToken("invalid-token")
-	if err != ErrInvalidToken {
+	_, err := svc.Validate("invalid-token")
+	if err != domain.ErrInvalidToken {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
 }
 
-func TestValidateToken_WrongSecret(t *testing.T) {
-	s := &AuthService{jwtSecret: []byte(testSecret)}
+func TestTokenService_Validate_WrongSecret(t *testing.T) {
+	svc := NewJWTTokenService(testSecret)
 
-	// Generate token with different secret
-	claims := &Claims{
+	claims := &jwtClaims{
 		UserID: "some-id",
 		Email:  "test@example.com",
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -81,16 +72,16 @@ func TestValidateToken_WrongSecret(t *testing.T) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenStr, _ := token.SignedString([]byte("wrong-secret"))
 
-	_, err := s.ValidateToken(tokenStr)
-	if err != ErrInvalidToken {
+	_, err := svc.Validate(tokenStr)
+	if err != domain.ErrInvalidToken {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
 }
 
-func TestValidateToken_ExpiredToken(t *testing.T) {
-	s := &AuthService{jwtSecret: []byte(testSecret)}
+func TestTokenService_Validate_ExpiredToken(t *testing.T) {
+	svc := NewJWTTokenService(testSecret)
 
-	claims := &Claims{
+	claims := &jwtClaims{
 		UserID: "some-id",
 		Email:  "test@example.com",
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -98,39 +89,32 @@ func TestValidateToken_ExpiredToken(t *testing.T) {
 		},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenStr, _ := token.SignedString(s.jwtSecret)
+	tokenStr, _ := token.SignedString([]byte(testSecret))
 
-	_, err := s.ValidateToken(tokenStr)
-	if err != ErrInvalidToken {
+	_, err := svc.Validate(tokenStr)
+	if err != domain.ErrInvalidToken {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
 }
 
-func TestRefreshToken_Valid(t *testing.T) {
-	s := &AuthService{jwtSecret: []byte(testSecret)}
+func TestAuthService_RefreshToken_Valid(t *testing.T) {
+	tokenSvc := NewJWTTokenService(testSecret)
+	authSvc := NewAuthService(nil, tokenSvc)
 
-	user := &model.User{
-		Email: "refresh@example.com",
-	}
-	user.ID = pgtype.UUID{
-		Bytes: [16]byte{0xa0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02},
-		Valid: true,
-	}
-
-	tokens, err := s.generateTokenPair(user)
+	tokens, err := tokenSvc.Generate("user-456", "refresh@example.com")
 	if err != nil {
-		t.Fatalf("generateTokenPair failed: %v", err)
+		t.Fatalf("Generate failed: %v", err)
 	}
 
-	newTokens, err := s.RefreshToken(tokens.RefreshToken)
+	newTokens, err := authSvc.RefreshToken(tokens.RefreshToken)
 	if err != nil {
 		t.Fatalf("RefreshToken failed: %v", err)
 	}
 	if newTokens.AccessToken == "" {
 		t.Error("new access token is empty")
 	}
-	// Validate the new access token works
-	newClaims, err := s.ValidateToken(newTokens.AccessToken)
+
+	newClaims, err := tokenSvc.Validate(newTokens.AccessToken)
 	if err != nil {
 		t.Fatalf("new access token is invalid: %v", err)
 	}
@@ -139,11 +123,12 @@ func TestRefreshToken_Valid(t *testing.T) {
 	}
 }
 
-func TestRefreshToken_Invalid(t *testing.T) {
-	s := &AuthService{jwtSecret: []byte(testSecret)}
+func TestAuthService_RefreshToken_Invalid(t *testing.T) {
+	tokenSvc := NewJWTTokenService(testSecret)
+	authSvc := NewAuthService(nil, tokenSvc)
 
-	_, err := s.RefreshToken("invalid-refresh-token")
-	if err != ErrInvalidToken {
+	_, err := authSvc.RefreshToken("invalid-refresh-token")
+	if err != domain.ErrInvalidToken {
 		t.Errorf("expected ErrInvalidToken, got %v", err)
 	}
 }

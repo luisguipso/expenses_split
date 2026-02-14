@@ -8,13 +8,8 @@ import (
 	"testing"
 
 	"github.com/labstack/echo/v4"
-	"github.com/lguilherme/contas/internal/service"
+	"github.com/lguilherme/contas/internal/domain"
 )
-
-type mockAuthService struct {
-	registerFunc func() (*service.TokenPair, error)
-	loginFunc    func() (*service.TokenPair, error)
-}
 
 func TestAuthHandler_Register_Validation(t *testing.T) {
 	e := echo.New()
@@ -145,14 +140,14 @@ func TestAuthHandler_Me(t *testing.T) {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
 
-	var result map[string]interface{}
+	var result domain.MeResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &result); err != nil {
 		t.Fatalf("failed to parse response: %v", err)
 	}
-	if result["user_id"] != "test-user-id" {
-		t.Errorf("expected user_id test-user-id, got %v", result["user_id"])
+	if result.UserID != "test-user-id" {
+		t.Errorf("expected user_id test-user-id, got %v", result.UserID)
 	}
-	if result["email"] != "test@example.com" {
-		t.Errorf("expected email test@example.com, got %v", result["email"])
+	if result.Email != "test@example.com" {
+		t.Errorf("expected email test@example.com, got %v", result.Email)
 	}
 }

@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/lguilherme/contas/internal/service"
+	"github.com/lguilherme/contas/internal/domain"
 )
 
-func JWTAuth(authService *service.AuthService) echo.MiddlewareFunc {
+func JWTAuth(tokens domain.TokenService) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
@@ -21,7 +21,7 @@ func JWTAuth(authService *service.AuthService) echo.MiddlewareFunc {
 				return echo.NewHTTPError(http.StatusUnauthorized, "invalid authorization format")
 			}
 
-			claims, err := authService.ValidateToken(parts[1])
+			claims, err := tokens.Validate(parts[1])
 			if err != nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired token")
 			}

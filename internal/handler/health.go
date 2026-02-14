@@ -5,23 +5,23 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
+	"github.com/lguilherme/contas/internal/domain"
 )
 
-func RegisterHealthRoutes(e *echo.Echo, db *pgxpool.Pool) {
+func RegisterHealthRoutes(e *echo.Echo, health domain.HealthChecker) {
 	e.GET("/health", func(c echo.Context) error {
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Second)
 		defer cancel()
 
 		dbStatus := "ok"
-		if err := db.Ping(ctx); err != nil {
+		if err := health.Ping(ctx); err != nil {
 			dbStatus = "error"
 		}
 
-		return c.JSON(http.StatusOK, map[string]string{
-			"status":   "ok",
-			"database": dbStatus,
+		return c.JSON(http.StatusOK, domain.HealthResponse{
+			Status:   "ok",
+			Database: dbStatus,
 		})
 	})
 }
