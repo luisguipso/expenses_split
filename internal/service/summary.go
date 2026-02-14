@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/lguilherme/contas/internal/domain"
@@ -75,6 +76,7 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		TotalAllCents:    totalAll,
 		GeneratedAt:      summary.GeneratedAt.Format(time.RFC3339),
 		Items:            breakdown,
+		Settlements:      minimizeTransfers(breakdown),
 	}, nil
 }
 
@@ -183,8 +185,10 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 	// 4. Calculate totals
 	var totalShared int64
 	personalByUser := make(map[string]int64)
+	paidByUser := make(map[string]int64)
 
 	for _, e := range expenses {
+		paidByUser[e.PaidBy] += e.AmountCents
 		if e.IsShared {
 			totalShared += e.AmountCents
 		} else {
@@ -200,6 +204,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		if !b.IsActive {
 			continue
 		}
+		paidByUser[b.PaidBy] += b.AmountCents
 		if b.IsShared {
 			totalShared += b.AmountCents
 		} else {
@@ -224,6 +229,8 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		allocatedShared += sharedDue
 
 		personalDue := personalByUser[m.UserID]
+		totalPaid := paidByUser[m.UserID]
+		amountDue := sharedDue + personalDue
 
 		breakdown[i] = domain.SummaryItemResponse{
 			UserID:             m.UserID,
@@ -232,11 +239,66 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 			Proportion:         proportion,
 			TotalSharedCents:   sharedDue,
 			TotalPersonalCents: personalDue,
-			AmountDueCents:     sharedDue + personalDue,
+			AmountDueCents:     amountDue,
+			TotalPaidCents:     totalPaid,
+			BalanceCents:       totalPaid - amountDue,
 		}
 	}
 
 	return breakdown, totalShared, nil
+}
+
+// minimizeTransfers computes the minimum number of transfers to settle all balances.
+// Uses a greedy algorithm: repeatedly match the largest creditor with the largest debtor.
+func minimizeTransfers(items []domain.SummaryItemResponse) []domain.SettlementTransfer {
+	type entry struct {
+		userID   string
+		userName string
+		balance  int64
+	}
+
+	var creditors, debtors []entry
+	for _, item := range items {
+		if item.BalanceCents > 0 {
+			creditors = append(creditors, entry{item.UserID, item.UserName, item.BalanceCents})
+		} else if item.BalanceCents < 0 {
+			debtors = append(debtors, entry{item.UserID, item.UserName, -item.BalanceCents})
+		}
+	}
+
+	// Sort descending by amount
+	sort.Slice(creditors, func(i, j int) bool { return creditors[i].balance > creditors[j].balance })
+	sort.Slice(debtors, func(i, j int) bool { return debtors[i].balance > debtors[j].balance })
+
+	var transfers []domain.SettlementTransfer
+	ci, di := 0, 0
+
+	for ci < len(creditors) && di < len(debtors) {
+		amount := creditors[ci].balance
+		if debtors[di].balance < amount {
+			amount = debtors[di].balance
+		}
+
+		transfers = append(transfers, domain.SettlementTransfer{
+			FromUserID:   debtors[di].userID,
+			FromUserName: debtors[di].userName,
+			ToUserID:     creditors[ci].userID,
+			ToUserName:   creditors[ci].userName,
+			AmountCents:  amount,
+		})
+
+		creditors[ci].balance -= amount
+		debtors[di].balance -= amount
+
+		if creditors[ci].balance == 0 {
+			ci++
+		}
+		if debtors[di].balance == 0 {
+			di++
+		}
+	}
+
+	return transfers
 }
 
 func (s *summaryService) checkMembership(ctx context.Context, householdID, userID string) error {
