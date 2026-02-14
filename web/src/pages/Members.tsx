@@ -95,11 +95,11 @@ export default function Members() {
 
   return (
     <Layout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-bold text-gray-900">Moradores</h2>
         {activeHousehold.invite_code && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">Código de convite:</span>
+            <span className="text-sm text-gray-500">Código:</span>
             <code className="rounded bg-gray-100 px-2 py-1 text-sm font-mono font-semibold text-gray-800">
               {activeHousehold.invite_code}
             </code>
@@ -120,8 +120,81 @@ export default function Members() {
       {loading ? (
         <Spinner />
       ) : (
-        <div className="overflow-hidden rounded-lg bg-white shadow">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="rounded-lg bg-white shadow">
+          {/* Mobile cards */}
+          <div className="divide-y divide-gray-200 sm:hidden">
+            {members.map((m) => (
+              <div key={m.user_id} className="px-4 py-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-gray-900">
+                      {m.user_name}
+                      {m.user_id === user?.id && (
+                        <span className="ml-1 text-xs text-gray-400">(você)</span>
+                      )}
+                    </span>
+                    <p className="text-xs text-gray-500">{m.user_email}</p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      m.role === 'admin'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    {m.role === 'admin' ? 'Admin' : 'Membro'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  {editingId === m.user_id ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={salaryInput}
+                        onChange={(e) => setSalaryInput(e.target.value)}
+                        className="w-28 rounded border border-gray-300 px-2 py-1 text-sm"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSalarySave(m.user_id);
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                      />
+                      <button onClick={() => handleSalarySave(m.user_id)} className="text-green-600">✓</button>
+                      <button onClick={() => setEditingId(null)} className="text-gray-400">✕</button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`text-sm cursor-pointer hover:text-blue-600 ${
+                        m.salary_cents === 0 ? 'text-gray-400 italic' : 'text-gray-900'
+                      }`}
+                      onClick={() =>
+                        (isAdmin || m.user_id === user?.id) && handleSalaryEdit(m)
+                      }
+                    >
+                      {m.salary_cents === 0 ? 'Salário não definido' : formatCurrency(m.salary_cents)}
+                    </span>
+                  )}
+                  <div>
+                    {isAdmin && m.user_id !== user?.id && (
+                      <button onClick={() => handleRemove(m.user_id, m.user_name)} className="text-sm text-red-600 hover:text-red-800">
+                        Remover
+                      </button>
+                    )}
+                    {!isAdmin && m.user_id === user?.id && (
+                      <button onClick={() => handleRemove(m.user_id, m.user_name)} className="text-sm text-red-600 hover:text-red-800">
+                        Sair
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <table className="hidden min-w-full divide-y divide-gray-200 sm:table">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">

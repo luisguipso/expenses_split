@@ -161,7 +161,7 @@ export default function FixedBills() {
 
   return (
     <Layout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-bold text-gray-900">Contas Fixas</h2>
         <button
           onClick={openCreate}
@@ -317,7 +317,55 @@ export default function FixedBills() {
       ) : bills.length === 0 ? (
         <p className="text-center text-gray-400">Nenhuma conta fixa cadastrada.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg bg-white shadow">
+        <div className="rounded-lg bg-white shadow">
+          {/* Mobile cards */}
+          <div className="divide-y divide-gray-200 sm:hidden">
+            {bills.map((bill) => {
+              const assignedMember = members.find((m) => m.user_id === bill.assigned_to);
+              return (
+                <div key={bill.id} className={`px-4 py-4 space-y-2 ${!bill.is_active ? 'opacity-50' : ''}`}>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-medium text-gray-900">{bill.description}</span>
+                      <div className="mt-0.5 text-xs text-gray-500">
+                        {bill.category_name && <span>{bill.category_name} · </span>}
+                        Dia {bill.due_day}
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(bill.amount_cents)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {bill.is_shared ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Compartilhada
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                          {assignedMember ? assignedMember.user_name : 'Pessoal'}
+                        </span>
+                      )}
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${bill.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {bill.is_active ? 'Ativa' : 'Inativa'}
+                      </span>
+                    </div>
+                    <div className="flex gap-3">
+                      <button onClick={() => openEdit(bill)} className="text-sm text-blue-600 hover:text-blue-800">
+                        Editar
+                      </button>
+                      <button onClick={() => handleDelete(bill.id, bill.description)} className="text-sm text-red-600 hover:text-red-800">
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -404,6 +452,7 @@ export default function FixedBills() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </Layout>

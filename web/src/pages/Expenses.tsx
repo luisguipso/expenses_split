@@ -189,7 +189,7 @@ export default function Expenses() {
 
   return (
     <Layout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-bold text-gray-900">Despesas</h2>
         <button
           onClick={openCreate}
@@ -204,58 +204,60 @@ export default function Expenses() {
       )}
 
       {/* Filters */}
-      <div className="mb-6 flex flex-wrap items-end gap-3 rounded-lg bg-white p-4 shadow">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">Mês</label>
-          <select
-            value={filterMonth}
-            onChange={(e) => setFilterMonth(Number(e.target.value))}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            {monthNames.map((m, i) => (
-              <option key={i} value={i + 1}>{m}</option>
-            ))}
-          </select>
+      <div className="mb-6 rounded-lg bg-white p-4 shadow">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-end">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Mês</label>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              {monthNames.map((m, i) => (
+                <option key={i} value={i + 1}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Ano</label>
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(Number(e.target.value))}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Categoria</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todas</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Pessoa</label>
+            <select
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <option value="">Todos</option>
+              {members.map((m) => (
+                <option key={m.user_id} value={m.user_id}>{m.user_name}</option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">Ano</label>
-          <select
-            value={filterYear}
-            onChange={(e) => setFilterYear(Number(e.target.value))}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            {Array.from({ length: 5 }, (_, i) => now.getFullYear() - 2 + i).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">Categoria</label>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">Todas</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">Pessoa</label>
-          <select
-            value={filterUser}
-            onChange={(e) => setFilterUser(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">Todos</option>
-            {members.map((m) => (
-              <option key={m.user_id} value={m.user_id}>{m.user_name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="ml-auto text-right">
+        <div className="mt-3 border-t border-gray-100 pt-3 text-right sm:mt-0 sm:border-0 sm:pt-0">
           <span className="block text-xs text-gray-500">Total do período</span>
           <span className="text-lg font-bold text-green-700">{formatCurrency(totalCents)}</span>
         </div>
@@ -391,7 +393,67 @@ export default function Expenses() {
           Nenhuma despesa em {monthNames[filterMonth - 1]} {filterYear}.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg bg-white shadow">
+        <div className="rounded-lg bg-white shadow">
+          {/* Mobile cards */}
+          <div className="divide-y divide-gray-200 sm:hidden">
+            {expenses.map((exp) => {
+              const dateParts = exp.expense_date.split('-');
+              const dateFormatted =
+                dateParts.length === 3
+                  ? `${dateParts[2]}/${dateParts[1]}`
+                  : exp.expense_date;
+              const assignedMember = members.find((m) => m.user_id === exp.assigned_to);
+
+              return (
+                <div key={exp.id} className="px-4 py-4 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-medium text-gray-900">{exp.description}</span>
+                      <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+                        <span>{dateFormatted}</span>
+                        {exp.category_name && <span>· {exp.category_name}</span>}
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {formatCurrency(exp.amount_cents)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {exp.is_shared ? (
+                        <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                          Compartilhada
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                          {assignedMember ? assignedMember.user_name : 'Pessoal'}
+                        </span>
+                      )}
+                      {exp.paid_by_name && (
+                        <span className="text-xs text-gray-400">por {exp.paid_by_name}</span>
+                      )}
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => openEdit(exp)}
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(exp.id, exp.description)}
+                        className="text-sm text-red-600 hover:text-red-800"
+                      >
+                        Excluir
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -476,6 +538,7 @@ export default function Expenses() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </Layout>

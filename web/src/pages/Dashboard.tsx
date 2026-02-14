@@ -127,13 +127,37 @@ export default function Dashboard() {
 
       {/* Member breakdown */}
       {dashboard.member_breakdown && dashboard.member_breakdown.length > 0 ? (
-        <div className="overflow-hidden rounded-lg bg-white shadow">
-          <div className="border-b border-gray-200 px-6 py-4">
+        <div className="rounded-lg bg-white shadow">
+          <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
             <h3 className="text-lg font-semibold text-gray-800">
               Divisão por Morador
             </h3>
           </div>
-          <table className="min-w-full divide-y divide-gray-200">
+          {/* Mobile cards */}
+          <div className="divide-y divide-gray-200 sm:hidden">
+            {dashboard.member_breakdown.map((item) => (
+              <div key={item.user_id} className="px-4 py-4 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{item.user_name}</span>
+                  <span className="text-sm text-gray-500">{(item.proportion * 100).toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Compartilhado</span>
+                  <span className="text-gray-700">{formatCurrency(item.total_shared_cents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Pessoal</span>
+                  <span className="text-gray-700">{formatCurrency(item.total_personal_cents)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-bold">
+                  <span className="text-gray-700">Total a Pagar</span>
+                  <span className="text-gray-900">{formatCurrency(item.amount_due_cents)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <table className="hidden min-w-full divide-y divide-gray-200 sm:table">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">

@@ -106,41 +106,43 @@ export default function Categories() {
       {/* Create form */}
       <form
         onSubmit={handleCreate}
-        className="mb-6 flex items-end gap-3 rounded-lg bg-white p-4 shadow"
+        className="mb-6 rounded-lg bg-white p-4 shadow"
       >
-        <div className="flex-1">
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Nome
-          </label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ex: Alimentação"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            maxLength={100}
-            required
-          />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Nome
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ex: Alimentação"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              maxLength={100}
+              required
+            />
+          </div>
+          <div className="w-full sm:w-28">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Ícone
+            </label>
+            <input
+              type="text"
+              value={icon}
+              onChange={(e) => setIcon(e.target.value)}
+              placeholder="🍔"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              maxLength={50}
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Adicionar
+          </button>
         </div>
-        <div className="w-28">
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Ícone
-          </label>
-          <input
-            type="text"
-            value={icon}
-            onChange={(e) => setIcon(e.target.value)}
-            placeholder="🍔"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-            maxLength={50}
-          />
-        </div>
-        <button
-          type="submit"
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Adicionar
-        </button>
       </form>
 
       {/* List */}
@@ -149,8 +151,56 @@ export default function Categories() {
       ) : categories.length === 0 ? (
         <p className="text-center text-gray-400">Nenhuma categoria cadastrada.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg bg-white shadow">
-          <table className="min-w-full divide-y divide-gray-200">
+        <div className="rounded-lg bg-white shadow">
+          {/* Mobile cards */}
+          <div className="divide-y divide-gray-200 sm:hidden">
+            {categories.map((cat) => (
+              <div key={cat.id} className="flex items-center justify-between px-4 py-3">
+                {editingId === cat.id ? (
+                  <div className="flex flex-1 items-center gap-2">
+                    <input
+                      type="text"
+                      value={editIcon}
+                      onChange={(e) => setEditIcon(e.target.value)}
+                      className="w-12 rounded border border-gray-300 px-2 py-1 text-sm"
+                      maxLength={50}
+                    />
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm"
+                      maxLength={100}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleUpdate();
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <span className="text-sm font-medium text-gray-900">
+                    {cat.icon || '—'} {cat.name}
+                  </span>
+                )}
+                <div className="ml-3 flex gap-2">
+                  {editingId === cat.id ? (
+                    <>
+                      <button onClick={handleUpdate} className="text-sm text-green-600 hover:text-green-800">✓</button>
+                      <button onClick={() => setEditingId(null)} className="text-sm text-gray-400 hover:text-gray-600">✕</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => startEdit(cat)} className="text-sm text-blue-600 hover:text-blue-800">Editar</button>
+                      <button onClick={() => handleDelete(cat.id, cat.name)} className="text-sm text-red-600 hover:text-red-800">Excluir</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Desktop table */}
+          <table className="hidden min-w-full divide-y divide-gray-200 sm:table">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">

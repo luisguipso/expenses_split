@@ -65,13 +65,13 @@ export default function Summary() {
 
   return (
     <Layout>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-bold text-gray-900">Resumo Mensal</h2>
         <div className="flex items-center gap-3">
           <select
             value={month}
             onChange={(e) => setMonth(Number(e.target.value))}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm sm:flex-none"
           >
             {monthNames.map((m, i) => (
               <option key={i} value={i + 1}>{m}</option>
@@ -114,8 +114,36 @@ export default function Summary() {
           </div>
 
           {/* Per-member breakdown */}
-          <div className="overflow-hidden rounded-lg bg-white shadow">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="rounded-lg bg-white shadow">
+            {/* Mobile cards */}
+            <div className="divide-y divide-gray-200 sm:hidden">
+              {summary.items.map((item) => (
+                <div key={item.user_id} className="px-4 py-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-900">{item.user_name}</span>
+                    <span className="text-sm text-gray-500">{(item.proportion * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Salário</span>
+                    <span className="text-gray-700">{formatCurrency(item.salary_cents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Compartilhado</span>
+                    <span className="text-gray-700">{formatCurrency(item.total_shared_cents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Pessoal</span>
+                    <span className="text-gray-700">{formatCurrency(item.total_personal_cents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold border-t border-gray-100 pt-1">
+                    <span className="text-gray-700">Total a Pagar</span>
+                    <span className="text-gray-900">{formatCurrency(item.amount_due_cents)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop table */}
+            <table className="hidden min-w-full divide-y divide-gray-200 sm:table">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
