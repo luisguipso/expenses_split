@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { useHousehold } from '../lib/household';
 import { householdApi } from '../lib/household-api';
 import { useNavigate } from 'react-router-dom';
+import ErrorAlert from '../components/ErrorAlert';
 
 export default function Households() {
   const { households, selectHousehold, refresh } = useHousehold();
@@ -71,9 +72,7 @@ export default function Households() {
         </h1>
 
         {error && (
-          <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-            {error}
-          </div>
+          <ErrorAlert message={error} onDismiss={() => setError('')} />
         )}
 
         {/* Household list */}

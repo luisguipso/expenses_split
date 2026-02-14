@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { useAuth } from '../lib/auth';
 import { useNavigate, Link } from 'react-router-dom';
+import ErrorAlert from '../components/ErrorAlert';
 
 export default function Register() {
   const { register } = useAuth();
@@ -38,11 +39,7 @@ export default function Register() {
         <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
           Criar Conta
         </h1>
-        {error && (
-          <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-            {error}
-          </div>
-        )}
+        <ErrorAlert message={error} onDismiss={() => setError('')} />
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">

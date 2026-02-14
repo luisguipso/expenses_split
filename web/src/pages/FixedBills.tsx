@@ -5,6 +5,8 @@ import { categoryApi } from '../lib/category-api';
 import { householdApi } from '../lib/household-api';
 import { FixedBill, Category, Member } from '../lib/types';
 import Layout from '../components/Layout';
+import Spinner from '../components/Spinner';
+import ErrorAlert from '../components/ErrorAlert';
 
 function formatCurrency(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {
@@ -170,9 +172,7 @@ export default function FixedBills() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
+        <ErrorAlert message={error} onDismiss={() => setError('')} />
       )}
 
       {/* Form modal */}
@@ -313,7 +313,7 @@ export default function FixedBills() {
 
       {/* List */}
       {loading ? (
-        <p className="text-gray-500">Carregando...</p>
+        <Spinner />
       ) : bills.length === 0 ? (
         <p className="text-center text-gray-400">Nenhuma conta fixa cadastrada.</p>
       ) : (

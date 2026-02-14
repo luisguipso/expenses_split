@@ -3,6 +3,8 @@ import { useHousehold } from '../lib/household';
 import { categoryApi } from '../lib/category-api';
 import { Category } from '../lib/types';
 import Layout from '../components/Layout';
+import Spinner from '../components/Spinner';
+import ErrorAlert from '../components/ErrorAlert';
 
 export default function Categories() {
   const { activeHousehold } = useHousehold();
@@ -98,9 +100,7 @@ export default function Categories() {
       <h2 className="mb-6 text-xl font-bold text-gray-900">Categorias</h2>
 
       {error && (
-        <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
+        <ErrorAlert message={error} onDismiss={() => setError('')} />
       )}
 
       {/* Create form */}
@@ -145,7 +145,7 @@ export default function Categories() {
 
       {/* List */}
       {loading ? (
-        <p className="text-gray-500">Carregando...</p>
+        <Spinner />
       ) : categories.length === 0 ? (
         <p className="text-center text-gray-400">Nenhuma categoria cadastrada.</p>
       ) : (

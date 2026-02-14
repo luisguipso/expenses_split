@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import { HouseholdProvider } from './lib/household';
+import ErrorBoundary from './components/ErrorBoundary';
+import Spinner from './components/Spinner';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -16,7 +18,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500">Carregando...</p>
+        <Spinner />
       </div>
     );
   }
@@ -28,7 +30,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-gray-500">Carregando...</p>
+        <Spinner />
       </div>
     );
   }
@@ -39,6 +41,7 @@ function App() {
   return (
     <AuthProvider>
       <HouseholdProvider>
+        <ErrorBoundary>
         <BrowserRouter>
           <Routes>
             <Route
@@ -115,6 +118,7 @@ function App() {
             />
           </Routes>
         </BrowserRouter>
+        </ErrorBoundary>
       </HouseholdProvider>
     </AuthProvider>
   );

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useHousehold } from '../lib/household';
 import { summaryApi, DashboardResponse } from '../lib/summary-api';
 import Layout from '../components/Layout';
+import Spinner from '../components/Spinner';
+import ErrorAlert from '../components/ErrorAlert';
 import { useNavigate } from 'react-router-dom';
 
 function formatCurrency(cents: number): string {
@@ -37,7 +39,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <Layout>
-        <p className="text-gray-500">Carregando...</p>
+        <Spinner />
       </Layout>
     );
   }
@@ -66,7 +68,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <Layout>
-        <p className="text-gray-500">Carregando painel...</p>
+        <Spinner text="Carregando painel..." />
       </Layout>
     );
   }
@@ -74,7 +76,7 @@ export default function Dashboard() {
   if (error) {
     return (
       <Layout>
-        <div className="rounded bg-red-50 p-3 text-sm text-red-600">{error}</div>
+        <ErrorAlert message={error} />
       </Layout>
     );
   }

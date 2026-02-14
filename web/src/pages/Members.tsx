@@ -4,6 +4,8 @@ import { householdApi } from '../lib/household-api';
 import { Member } from '../lib/types';
 import { useAuth } from '../lib/auth';
 import Layout from '../components/Layout';
+import Spinner from '../components/Spinner';
+import ErrorAlert from '../components/ErrorAlert';
 
 function formatCurrency(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {
@@ -112,13 +114,11 @@ export default function Members() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
+        <ErrorAlert message={error} onDismiss={() => setError('')} />
       )}
 
       {loading ? (
-        <p className="text-gray-500">Carregando...</p>
+        <Spinner />
       ) : (
         <div className="overflow-hidden rounded-lg bg-white shadow">
           <table className="min-w-full divide-y divide-gray-200">

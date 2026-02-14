@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useHousehold } from '../lib/household';
 import { summaryApi, SummaryResponse } from '../lib/summary-api';
 import Layout from '../components/Layout';
+import Spinner from '../components/Spinner';
+import ErrorAlert from '../components/ErrorAlert';
 
 function formatCurrency(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {
@@ -88,13 +90,11 @@ export default function Summary() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded bg-red-50 p-3 text-sm text-red-600">
-          {error}
-        </div>
+        <ErrorAlert message={error} onDismiss={() => setError('')} />
       )}
 
       {loading ? (
-        <p className="text-gray-500">Calculando...</p>
+        <Spinner text="Calculando..." />
       ) : summary ? (
         <>
           {/* Totals */}
