@@ -10,8 +10,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { path: '/', label: 'Painel' },
-    { path: '/categorias', label: 'Categorias' },
+    { path: '/despesas', label: 'Despesas' },
     { path: '/contas-fixas', label: 'Contas Fixas' },
+    { path: '/categorias', label: 'Categorias' },
     { path: '/membros', label: 'Moradores' },
     { path: '/residencias', label: 'Residências' },
   ];

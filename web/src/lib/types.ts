@@ -31,3 +31,16 @@ export interface FixedBill {
   assigned_to?: string;
   is_active: boolean;
 }
+
+export interface Expense {
+  id: string;
+  category_id?: string;
+  category_name?: string;
+  description: string;
+  amount_cents: number;
+  expense_date: string;
+  is_shared: boolean;
+  paid_by: string;
+  paid_by_name?: string;
+  assigned_to?: string;
+}
