@@ -1,0 +1,8 @@
+.env
+*.exe
+api
+bin/
+tmp/
+vendor/
+web/node_modules/
+web/dist/
