@@ -45,7 +45,7 @@ func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.
 	var categoryID, assignedTo, categoryName, paidByName sql.NullString
 	err := r.db.QueryRow(ctx,
 		`SELECT fb.id, fb.household_id, fb.category_id, c.name, fb.description,
-		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by, u.name,
+		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by::text, u.name,
 		        fb.assigned_to, fb.is_active,
 		        fb.created_at, fb.updated_at
 		 FROM fixed_bills fb
@@ -80,7 +80,7 @@ func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.
 func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID string) ([]domain.FixedBill, error) {
 	rows, err := r.db.Query(ctx,
 		`SELECT fb.id, fb.household_id, fb.category_id, c.name, fb.description,
-		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by, u.name,
+		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by::text, u.name,
 		        fb.assigned_to, fb.is_active,
 		        fb.created_at, fb.updated_at
 		 FROM fixed_bills fb
