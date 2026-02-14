@@ -840,3 +840,392 @@ func TestSummaryService_Dashboard_NotMember(t *testing.T) {
 		t.Errorf("expected ErrForbidden, got %v", err)
 	}
 }
+
+// --- minimizeTransfers tests ---
+
+func TestMinimizeTransfers_TwoPeopleOnePayor(t *testing.T) {
+	// Alice paid everything (balance +5000), Bob paid nothing (balance -5000)
+	items := []domain.SummaryItemResponse{
+		{UserID: "u1", UserName: "Alice", BalanceCents: 5000},
+		{UserID: "u2", UserName: "Bob", BalanceCents: -5000},
+	}
+	transfers := minimizeTransfers(items)
+
+	if len(transfers) != 1 {
+		t.Fatalf("expected 1 transfer, got %d", len(transfers))
+	}
+	if transfers[0].FromUserID != "u2" || transfers[0].ToUserID != "u1" {
+		t.Errorf("expected Bob→Alice, got %s→%s", transfers[0].FromUserName, transfers[0].ToUserName)
+	}
+	if transfers[0].AmountCents != 5000 {
+		t.Errorf("expected 5000, got %d", transfers[0].AmountCents)
+	}
+}
+
+func TestMinimizeTransfers_ThreePeopleVaryingBalances(t *testing.T) {
+	// Alice: +1500, Bob: -700, Carol: -800
+	// Expected: Carol→Alice 800, Bob→Alice 700 (2 transfers)
+	items := []domain.SummaryItemResponse{
+		{UserID: "u1", UserName: "Alice", BalanceCents: 1500},
+		{UserID: "u2", UserName: "Bob", BalanceCents: -700},
+		{UserID: "u3", UserName: "Carol", BalanceCents: -800},
+	}
+	transfers := minimizeTransfers(items)
+
+	if len(transfers) != 2 {
+		t.Fatalf("expected 2 transfers, got %d", len(transfers))
+	}
+
+	// Verify total transferred to Alice = 1500
+	var totalToAlice int64
+	for _, tr := range transfers {
+		if tr.ToUserID != "u1" {
+			t.Errorf("all transfers should go to Alice, got to %s", tr.ToUserName)
+		}
+		totalToAlice += tr.AmountCents
+	}
+	if totalToAlice != 1500 {
+		t.Errorf("total to Alice should be 1500, got %d", totalToAlice)
+	}
+}
+
+func TestMinimizeTransfers_AllBalanced(t *testing.T) {
+	// Everyone has zero balance — no transfers needed
+	items := []domain.SummaryItemResponse{
+		{UserID: "u1", UserName: "Alice", BalanceCents: 0},
+		{UserID: "u2", UserName: "Bob", BalanceCents: 0},
+		{UserID: "u3", UserName: "Carol", BalanceCents: 0},
+	}
+	transfers := minimizeTransfers(items)
+
+	if len(transfers) != 0 {
+		t.Errorf("expected 0 transfers, got %d", len(transfers))
+	}
+}
+
+func TestMinimizeTransfers_SinglePerson(t *testing.T) {
+	items := []domain.SummaryItemResponse{
+		{UserID: "u1", UserName: "Alice", BalanceCents: 0},
+	}
+	transfers := minimizeTransfers(items)
+
+	if len(transfers) != 0 {
+		t.Errorf("expected 0 transfers for single person, got %d", len(transfers))
+	}
+}
+
+func TestMinimizeTransfers_Empty(t *testing.T) {
+	transfers := minimizeTransfers(nil)
+	if len(transfers) != 0 {
+		t.Errorf("expected 0 transfers for nil input, got %d", len(transfers))
+	}
+}
+
+func TestMinimizeTransfers_FivePeopleSumCorrectness(t *testing.T) {
+	// 5 members, various balances that sum to zero
+	items := []domain.SummaryItemResponse{
+		{UserID: "u1", UserName: "Alice", BalanceCents: 3000},
+		{UserID: "u2", UserName: "Bob", BalanceCents: -1000},
+		{UserID: "u3", UserName: "Carol", BalanceCents: 500},
+		{UserID: "u4", UserName: "Dave", BalanceCents: -2000},
+		{UserID: "u5", UserName: "Eve", BalanceCents: -500},
+	}
+	transfers := minimizeTransfers(items)
+
+	// Verify net effect: each person's net transfer matches their balance
+	netByUser := make(map[string]int64)
+	for _, tr := range transfers {
+		netByUser[tr.FromUserID] -= tr.AmountCents
+		netByUser[tr.ToUserID] += tr.AmountCents
+	}
+
+	for _, item := range items {
+		if item.BalanceCents != 0 && netByUser[item.UserID] != item.BalanceCents {
+			t.Errorf("%s: expected net %d, got %d", item.UserName, item.BalanceCents, netByUser[item.UserID])
+		}
+	}
+
+	// Should need at most 4 transfers (n-1) but greedy often does fewer
+	if len(transfers) > 4 {
+		t.Errorf("expected at most 4 transfers, got %d", len(transfers))
+	}
+}
+
+func TestMinimizeTransfers_MultipleCreditors(t *testing.T) {
+	// Alice: +2000, Bob: +1000, Carol: -3000
+	// Carol owes both; greedy: Carol→Alice 2000, Carol→Bob 1000
+	items := []domain.SummaryItemResponse{
+		{UserID: "u1", UserName: "Alice", BalanceCents: 2000},
+		{UserID: "u2", UserName: "Bob", BalanceCents: 1000},
+		{UserID: "u3", UserName: "Carol", BalanceCents: -3000},
+	}
+	transfers := minimizeTransfers(items)
+
+	if len(transfers) != 2 {
+		t.Fatalf("expected 2 transfers, got %d", len(transfers))
+	}
+
+	// All transfers should be from Carol
+	for _, tr := range transfers {
+		if tr.FromUserID != "u3" {
+			t.Errorf("expected from Carol, got from %s", tr.FromUserName)
+		}
+	}
+
+	var total int64
+	for _, tr := range transfers {
+		total += tr.AmountCents
+	}
+	if total != 3000 {
+		t.Errorf("total transferred should be 3000, got %d", total)
+	}
+}
+
+// --- Balance calculation tests ---
+
+func TestSummaryService_Balance_PayerGetsPositiveBalance(t *testing.T) {
+	// Alice pays 10000 shared expense, owes 6250 (62.5%) → balance = +3750
+	// Bob pays nothing, owes 3750 (37.5%) → balance = -3750
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn:   memberOK(),
+		ListMembersFn: twoMembers(),
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 10000, IsShared: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
+	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	alice := resp.Items[0]
+	if alice.TotalPaidCents != 10000 {
+		t.Errorf("Alice paid: expected 10000, got %d", alice.TotalPaidCents)
+	}
+	if alice.BalanceCents != 3750 {
+		t.Errorf("Alice balance: expected +3750, got %d", alice.BalanceCents)
+	}
+
+	bob := resp.Items[1]
+	if bob.TotalPaidCents != 0 {
+		t.Errorf("Bob paid: expected 0, got %d", bob.TotalPaidCents)
+	}
+	if bob.BalanceCents != -3750 {
+		t.Errorf("Bob balance: expected -3750, got %d", bob.BalanceCents)
+	}
+
+	// Balances must sum to zero
+	if alice.BalanceCents+bob.BalanceCents != 0 {
+		t.Errorf("balances should sum to 0, got %d", alice.BalanceCents+bob.BalanceCents)
+	}
+
+	// Should produce exactly 1 settlement: Bob → Alice 3750
+	if len(resp.Settlements) != 1 {
+		t.Fatalf("expected 1 settlement, got %d", len(resp.Settlements))
+	}
+	if resp.Settlements[0].FromUserID != "u2" || resp.Settlements[0].ToUserID != "u1" {
+		t.Errorf("expected Bob→Alice, got %s→%s", resp.Settlements[0].FromUserName, resp.Settlements[0].ToUserName)
+	}
+	if resp.Settlements[0].AmountCents != 3750 {
+		t.Errorf("expected settlement 3750, got %d", resp.Settlements[0].AmountCents)
+	}
+}
+
+func TestSummaryService_Balance_ExactPayment(t *testing.T) {
+	// Each person pays exactly what they owe → zero balance, no settlements
+	// Alice: 62.5% of 8000 = 5000, Bob: 37.5% of 8000 = 3000
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn:   memberOK(),
+		ListMembersFn: twoMembers(),
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 5000, IsShared: true, PaidBy: "u1"},
+				{ID: "e2", AmountCents: 3000, IsShared: true, PaidBy: "u2"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
+	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	for _, item := range resp.Items {
+		if item.BalanceCents != 0 {
+			t.Errorf("%s balance: expected 0, got %d", item.UserName, item.BalanceCents)
+		}
+	}
+	if len(resp.Settlements) != 0 {
+		t.Errorf("expected 0 settlements, got %d", len(resp.Settlements))
+	}
+}
+
+func TestSummaryService_Balance_MixedSharedPersonalWithPayments(t *testing.T) {
+	// Alice pays R$100 shared expense + R$30 personal bill for herself
+	// Bob pays R$50 shared bill
+	// Total shared: 15000 (expense 10000 + bill 5000)
+	// Alice owes: 62.5% of 15000 = 9375 shared + 3000 personal = 12375
+	// Alice paid: 10000 + 3000 = 13000 → balance = +625
+	// Bob owes: 37.5% of 15000 = 5625 shared + 0 personal = 5625
+	// Bob paid: 5000 → balance = -625
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn:   memberOK(),
+		ListMembersFn: twoMembers(),
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 10000, IsShared: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string) ([]domain.FixedBill, error) {
+			return []domain.FixedBill{
+				{ID: "b1", AmountCents: 5000, IsShared: true, IsActive: true, PaidBy: "u2"},
+				{ID: "b2", AmountCents: 3000, IsShared: false, AssignedTo: "u1", IsActive: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	alice := resp.Items[0]
+	if alice.TotalPaidCents != 13000 {
+		t.Errorf("Alice paid: expected 13000, got %d", alice.TotalPaidCents)
+	}
+	if alice.AmountDueCents != 12375 {
+		t.Errorf("Alice due: expected 12375, got %d", alice.AmountDueCents)
+	}
+	if alice.BalanceCents != 625 {
+		t.Errorf("Alice balance: expected +625, got %d", alice.BalanceCents)
+	}
+
+	bob := resp.Items[1]
+	if bob.TotalPaidCents != 5000 {
+		t.Errorf("Bob paid: expected 5000, got %d", bob.TotalPaidCents)
+	}
+	if bob.BalanceCents != -625 {
+		t.Errorf("Bob balance: expected -625, got %d", bob.BalanceCents)
+	}
+
+	// Balances sum to zero
+	if alice.BalanceCents+bob.BalanceCents != 0 {
+		t.Errorf("balances should sum to 0, got %d", alice.BalanceCents+bob.BalanceCents)
+	}
+}
+
+func TestSummaryService_Balance_BalancesSumToZeroInvariant(t *testing.T) {
+	// 3 members, complex scenario: verify the invariant that balances always sum to zero
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn:   memberOK(),
+		ListMembersFn: threeMembersEqualSalary(),
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 9000, IsShared: true, PaidBy: "u1"},
+				{ID: "e2", AmountCents: 3000, IsShared: true, PaidBy: "u2"},
+				{ID: "e3", AmountCents: 1500, IsShared: false, PaidBy: "u3", AssignedTo: "u3"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string) ([]domain.FixedBill, error) {
+			return []domain.FixedBill{
+				{ID: "b1", AmountCents: 6000, IsShared: true, IsActive: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	var totalBalance int64
+	for _, item := range resp.Items {
+		totalBalance += item.BalanceCents
+	}
+	if totalBalance != 0 {
+		t.Errorf("balances must sum to 0, got %d", totalBalance)
+	}
+
+	// Verify settlements net effect matches balances
+	netByUser := make(map[string]int64)
+	for _, tr := range resp.Settlements {
+		netByUser[tr.FromUserID] -= tr.AmountCents
+		netByUser[tr.ToUserID] += tr.AmountCents
+	}
+	for _, item := range resp.Items {
+		if item.BalanceCents != 0 && netByUser[item.UserID] != item.BalanceCents {
+			t.Errorf("%s: settlement net %d != balance %d", item.UserName, netByUser[item.UserID], item.BalanceCents)
+		}
+	}
+}
+
+func TestSummaryService_Dashboard_BalanceFields(t *testing.T) {
+	// Verify dashboard breakdown includes balance fields
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn:   memberOK(),
+		ListMembersFn: twoMembers(),
+		FindByIDFn: func(ctx context.Context, id string) (*domain.Household, error) {
+			return &domain.Household{ID: id, Name: "Casa"}, nil
+		},
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 8000, IsShared: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
+
+	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo)
+	dash, err := svc.GetDashboard(context.Background(), "hh-1", "u1")
+	if err != nil {
+		t.Fatalf("GetDashboard failed: %v", err)
+	}
+
+	if len(dash.MemberBreakdown) != 2 {
+		t.Fatalf("expected 2 members, got %d", len(dash.MemberBreakdown))
+	}
+
+	alice := dash.MemberBreakdown[0]
+	if alice.TotalPaidCents != 8000 {
+		t.Errorf("Alice paid: expected 8000, got %d", alice.TotalPaidCents)
+	}
+	// Alice owes 62.5% of 8000 = 5000, paid 8000 → balance +3000
+	if alice.BalanceCents != 3000 {
+		t.Errorf("Alice balance: expected +3000, got %d", alice.BalanceCents)
+	}
+
+	bob := dash.MemberBreakdown[1]
+	if bob.TotalPaidCents != 0 {
+		t.Errorf("Bob paid: expected 0, got %d", bob.TotalPaidCents)
+	}
+	if bob.BalanceCents != -3000 {
+		t.Errorf("Bob balance: expected -3000, got %d", bob.BalanceCents)
+	}
+}
