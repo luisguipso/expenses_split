@@ -139,6 +139,16 @@ export default function Summary() {
                     <span className="text-gray-700">Total a Pagar</span>
                     <span className="text-gray-900">{formatCurrency(item.amount_due_cents)}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Pago</span>
+                    <span className="text-gray-700">{formatCurrency(item.total_paid_cents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-semibold">
+                    <span className="text-gray-500">Saldo</span>
+                    <span className={item.balance_cents > 0 ? 'text-green-600' : item.balance_cents < 0 ? 'text-red-600' : 'text-gray-500'}>
+                      {item.balance_cents > 0 ? '+' : ''}{formatCurrency(item.balance_cents)}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -164,6 +174,12 @@ export default function Summary() {
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
                     Total a Pagar
                   </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                    Pago
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                    Saldo
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -187,11 +203,42 @@ export default function Summary() {
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-bold text-gray-900">
                       {formatCurrency(item.amount_due_cents)}
                     </td>
+                    <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-700">
+                      {formatCurrency(item.total_paid_cents)}
+                    </td>
+                    <td className={`whitespace-nowrap px-6 py-4 text-right text-sm font-semibold ${item.balance_cents > 0 ? 'text-green-600' : item.balance_cents < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                      {item.balance_cents > 0 ? '+' : ''}{formatCurrency(item.balance_cents)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {/* Settlements */}
+          {summary.settlements && summary.settlements.length > 0 && (
+            <div className="mt-6 rounded-lg bg-white shadow">
+              <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Acertos
+                </h3>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {summary.settlements.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-3 sm:px-6">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium text-red-600">{s.from_user_name}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="font-medium text-green-600">{s.to_user_name}</span>
+                    </div>
+                    <span className="text-sm font-bold text-gray-900">
+                      {formatCurrency(s.amount_cents)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <p className="mt-4 text-right text-xs text-gray-400">
             Gerado em: {new Date(summary.generated_at).toLocaleString('pt-BR')}

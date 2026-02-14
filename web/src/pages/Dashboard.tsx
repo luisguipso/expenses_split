@@ -153,6 +153,12 @@ export default function Dashboard() {
                   <span className="text-gray-700">Total a Pagar</span>
                   <span className="text-gray-900">{formatCurrency(item.amount_due_cents)}</span>
                 </div>
+                <div className="flex justify-between text-sm font-semibold">
+                  <span className="text-gray-500">Saldo</span>
+                  <span className={item.balance_cents > 0 ? 'text-green-600' : item.balance_cents < 0 ? 'text-red-600' : 'text-gray-500'}>
+                    {item.balance_cents > 0 ? '↑ +' : item.balance_cents < 0 ? '↓ ' : ''}{formatCurrency(item.balance_cents)}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -175,6 +181,9 @@ export default function Dashboard() {
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
                   Total a Pagar
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
+                  Saldo
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -194,6 +203,9 @@ export default function Dashboard() {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-bold text-gray-900">
                     {formatCurrency(item.amount_due_cents)}
+                  </td>
+                  <td className={`whitespace-nowrap px-6 py-4 text-right text-sm font-semibold ${item.balance_cents > 0 ? 'text-green-600' : item.balance_cents < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                    {item.balance_cents > 0 ? '↑ +' : item.balance_cents < 0 ? '↓ ' : ''}{formatCurrency(item.balance_cents)}
                   </td>
                 </tr>
               ))}
