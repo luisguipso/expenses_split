@@ -26,6 +26,16 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "name, email, and password are required")
 	}
 
+	if err := validateMaxLen("name", input.Name, 255); err != nil {
+		return err
+	}
+	if err := validateMaxLen("email", input.Email, 255); err != nil {
+		return err
+	}
+	if !isValidEmail(input.Email) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid email format")
+	}
+
 	if len(input.Password) < 6 {
 		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 6 characters")
 	}
@@ -89,8 +99,11 @@ func (h *AuthHandler) Refresh(c echo.Context) error {
 }
 
 func (h *AuthHandler) Me(c echo.Context) error {
-	userID := c.Get("user_id").(string)
-	email := c.Get("user_email").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
+	email, _ := c.Get("user_email").(string)
 
 	return c.JSON(http.StatusOK, domain.MeResponse{
 		UserID: userID,

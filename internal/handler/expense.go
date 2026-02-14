@@ -26,11 +26,17 @@ func (h *ExpenseHandler) Create(c echo.Context) error {
 	if input.Description == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "description is required")
 	}
+	if err := validateMaxLen("description", input.Description, 255); err != nil {
+		return err
+	}
 	if input.AmountCents <= 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "amount_cents must be positive")
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	expense, err := h.svc.Create(c.Request().Context(), input, householdID, userID)
 	if err != nil {
 		return expenseError(err)
@@ -41,7 +47,10 @@ func (h *ExpenseHandler) Create(c echo.Context) error {
 
 func (h *ExpenseHandler) List(c echo.Context) error {
 	householdID := c.Param("householdId")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	filter := domain.ExpenseFilter{
 		CategoryID: c.QueryParam("category_id"),
@@ -79,6 +88,9 @@ func (h *ExpenseHandler) Update(c echo.Context) error {
 	if input.Description == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "description is required")
 	}
+	if err := validateMaxLen("description", input.Description, 255); err != nil {
+		return err
+	}
 	if input.AmountCents <= 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "amount_cents must be positive")
 	}
@@ -86,7 +98,10 @@ func (h *ExpenseHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "expense_date is required")
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	expense, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
 		return expenseError(err)
@@ -97,7 +112,10 @@ func (h *ExpenseHandler) Update(c echo.Context) error {
 
 func (h *ExpenseHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
 		return expenseError(err)

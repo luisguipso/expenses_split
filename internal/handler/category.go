@@ -25,8 +25,17 @@ func (h *CategoryHandler) Create(c echo.Context) error {
 	if input.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "name is required")
 	}
+	if err := validateMaxLen("name", input.Name, 100); err != nil {
+		return err
+	}
+	if err := validateMaxLen("icon", input.Icon, 50); err != nil {
+		return err
+	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	cat, err := h.svc.Create(c.Request().Context(), input, householdID, userID)
 	if err != nil {
 		return categoryError(err)
@@ -37,7 +46,10 @@ func (h *CategoryHandler) Create(c echo.Context) error {
 
 func (h *CategoryHandler) List(c echo.Context) error {
 	householdID := c.Param("householdId")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	categories, err := h.svc.List(c.Request().Context(), householdID, userID)
 	if err != nil {
@@ -58,7 +70,19 @@ func (h *CategoryHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	userID := c.Get("user_id").(string)
+	if input.Name != "" {
+		if err := validateMaxLen("name", input.Name, 100); err != nil {
+			return err
+		}
+	}
+	if err := validateMaxLen("icon", input.Icon, 50); err != nil {
+		return err
+	}
+
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	cat, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
 		return categoryError(err)
@@ -69,7 +93,10 @@ func (h *CategoryHandler) Update(c echo.Context) error {
 
 func (h *CategoryHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
 		return categoryError(err)

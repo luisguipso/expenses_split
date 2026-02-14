@@ -25,6 +25,9 @@ func (h *FixedBillHandler) Create(c echo.Context) error {
 	if input.Description == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "description is required")
 	}
+	if err := validateMaxLen("description", input.Description, 255); err != nil {
+		return err
+	}
 	if input.AmountCents <= 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "amount_cents must be positive")
 	}
@@ -32,7 +35,10 @@ func (h *FixedBillHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "due_day must be between 1 and 31")
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	bill, err := h.svc.Create(c.Request().Context(), input, householdID, userID)
 	if err != nil {
 		return fixedBillError(err)
@@ -43,7 +49,10 @@ func (h *FixedBillHandler) Create(c echo.Context) error {
 
 func (h *FixedBillHandler) List(c echo.Context) error {
 	householdID := c.Param("householdId")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	bills, err := h.svc.List(c.Request().Context(), householdID, userID)
 	if err != nil {
@@ -66,6 +75,9 @@ func (h *FixedBillHandler) Update(c echo.Context) error {
 	if input.Description == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "description is required")
 	}
+	if err := validateMaxLen("description", input.Description, 255); err != nil {
+		return err
+	}
 	if input.AmountCents <= 0 {
 		return echo.NewHTTPError(http.StatusBadRequest, "amount_cents must be positive")
 	}
@@ -73,7 +85,10 @@ func (h *FixedBillHandler) Update(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "due_day must be between 1 and 31")
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	bill, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
 		return fixedBillError(err)
@@ -84,7 +99,10 @@ func (h *FixedBillHandler) Update(c echo.Context) error {
 
 func (h *FixedBillHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
 		return fixedBillError(err)

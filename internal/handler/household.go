@@ -24,8 +24,14 @@ func (h *HouseholdHandler) Create(c echo.Context) error {
 	if input.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "name is required")
 	}
+	if err := validateMaxLen("name", input.Name, 255); err != nil {
+		return err
+	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	household, err := h.svc.Create(c.Request().Context(), input, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create household")
@@ -36,7 +42,10 @@ func (h *HouseholdHandler) Create(c echo.Context) error {
 
 func (h *HouseholdHandler) Get(c echo.Context) error {
 	id := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	household, err := h.svc.GetByID(c.Request().Context(), id, userID)
 	if err != nil {
@@ -47,7 +56,10 @@ func (h *HouseholdHandler) Get(c echo.Context) error {
 }
 
 func (h *HouseholdHandler) List(c echo.Context) error {
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	households, err := h.svc.ListByUser(c.Request().Context(), userID)
 	if err != nil {
@@ -70,8 +82,14 @@ func (h *HouseholdHandler) Update(c echo.Context) error {
 	if input.Name == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "name is required")
 	}
+	if err := validateMaxLen("name", input.Name, 255); err != nil {
+		return err
+	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	household, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
 		return householdError(err)
@@ -82,7 +100,10 @@ func (h *HouseholdHandler) Update(c echo.Context) error {
 
 func (h *HouseholdHandler) Delete(c echo.Context) error {
 	id := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
 		return householdError(err)
@@ -100,7 +121,10 @@ func (h *HouseholdHandler) Join(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invite_code is required")
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	household, err := h.svc.Join(c.Request().Context(), input.InviteCode, userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInviteCode) {
@@ -117,7 +141,10 @@ func (h *HouseholdHandler) Join(c echo.Context) error {
 
 func (h *HouseholdHandler) ListMembers(c echo.Context) error {
 	householdID := c.Param("id")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	members, err := h.svc.ListMembers(c.Request().Context(), householdID, userID)
 	if err != nil {
@@ -143,7 +170,10 @@ func (h *HouseholdHandler) UpdateMemberSalary(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "salary_cents must be non-negative")
 	}
 
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 	if err := h.svc.UpdateMemberSalary(c.Request().Context(), householdID, memberID, input.SalaryCents, userID); err != nil {
 		return householdError(err)
 	}
@@ -154,7 +184,10 @@ func (h *HouseholdHandler) UpdateMemberSalary(c echo.Context) error {
 func (h *HouseholdHandler) RemoveMember(c echo.Context) error {
 	householdID := c.Param("id")
 	memberID := c.Param("memberId")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	if err := h.svc.RemoveMember(c.Request().Context(), householdID, memberID, userID); err != nil {
 		return householdError(err)

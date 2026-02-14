@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -62,6 +64,7 @@ func main() {
 	// Router
 	e := echo.New()
 	e.HideBanner = true
+	e.HTTPErrorHandler = customErrorHandler
 
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
@@ -89,4 +92,24 @@ func main() {
 		log.Fatalf("Server failed: %v", err)
 		os.Exit(1)
 	}
+}
+
+func customErrorHandler(err error, c echo.Context) {
+	if c.Response().Committed {
+		return
+	}
+
+	code := http.StatusInternalServerError
+	message := "internal server error"
+
+	if he, ok := err.(*echo.HTTPError); ok {
+		code = he.Code
+		message = fmt.Sprintf("%v", he.Message)
+	}
+
+	if code >= 500 {
+		log.Printf("ERROR: %v", err)
+	}
+
+	_ = c.JSON(code, map[string]string{"error": message})
 }

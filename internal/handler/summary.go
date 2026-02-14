@@ -19,7 +19,10 @@ func NewSummaryHandler(svc domain.SummaryService) *SummaryHandler {
 
 func (h *SummaryHandler) GetSummary(c echo.Context) error {
 	householdID := c.Param("householdId")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	yearStr := c.QueryParam("year")
 	monthStr := c.QueryParam("month")
@@ -46,7 +49,10 @@ func (h *SummaryHandler) GetSummary(c echo.Context) error {
 
 func (h *SummaryHandler) GetDashboard(c echo.Context) error {
 	householdID := c.Param("householdId")
-	userID := c.Get("user_id").(string)
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
 
 	dashboard, err := h.svc.GetDashboard(c.Request().Context(), householdID, userID)
 	if err != nil {

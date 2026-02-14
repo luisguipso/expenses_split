@@ -29,6 +29,8 @@ wantStatus int
 {"missing password", `{"name":"Test","email":"test@example.com"}`, http.StatusBadRequest},
 {"short password", `{"name":"Test","email":"test@example.com","password":"12345"}`, http.StatusBadRequest},
 {"invalid json", `not json`, http.StatusBadRequest},
+{"invalid email format", `{"name":"Test","email":"notanemail","password":"123456"}`, http.StatusBadRequest},
+{"name too long", `{"name":"` + strings.Repeat("a", 256) + `","email":"test@example.com","password":"123456"}`, http.StatusBadRequest},
 }
 
 for _, tt := range tests {

@@ -24,10 +24,14 @@ func (r *expenseRepository) Create(ctx context.Context, e *domain.Expense) error
 		VALUES ($1, nullif($2,''), $3, $4, $5, $6, $7, nullif($8,''))
 		RETURNING id, created_at, updated_at`
 
-	return r.db.QueryRow(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		e.HouseholdID, e.CategoryID, e.Description, e.AmountCents,
 		e.ExpenseDate, e.IsShared, e.PaidBy, e.AssignedTo,
 	).Scan(&e.ID, &e.CreatedAt, &e.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("expense create: %w", err)
+	}
+	return nil
 }
 
 func (r *expenseRepository) FindByID(ctx context.Context, id string) (*domain.Expense, error) {
@@ -52,7 +56,7 @@ func (r *expenseRepository) FindByID(ctx context.Context, id string) (*domain.Ex
 		return nil, domain.ErrExpenseNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("expense find by id: %w", err)
 	}
 	return &e, nil
 }
@@ -101,7 +105,7 @@ func (r *expenseRepository) ListByHousehold(ctx context.Context, householdID str
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("expense list: %w", err)
 	}
 	defer rows.Close()
 
@@ -114,7 +118,7 @@ func (r *expenseRepository) ListByHousehold(ctx context.Context, householdID str
 			&e.PaidBy, &e.PaidByName, &e.AssignedTo,
 			&e.CreatedAt, &e.UpdatedAt,
 		); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("expense list scan: %w", err)
 		}
 		expenses = append(expenses, e)
 	}
@@ -129,14 +133,26 @@ func (r *expenseRepository) Update(ctx context.Context, e *domain.Expense) error
 		    updated_at = now()
 		WHERE id = $7`
 
-	_, err := r.db.Exec(ctx, query,
+	result, err := r.db.Exec(ctx, query,
 		e.CategoryID, e.Description, e.AmountCents,
 		e.ExpenseDate, e.IsShared, e.AssignedTo, e.ID,
 	)
-	return err
+	if err != nil {
+		return fmt.Errorf("expense update: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return domain.ErrExpenseNotFound
+	}
+	return nil
 }
 
 func (r *expenseRepository) Delete(ctx context.Context, id string) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM expenses WHERE id = $1", id)
-	return err
+	result, err := r.db.Exec(ctx, "DELETE FROM expenses WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("expense delete: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return domain.ErrExpenseNotFound
+	}
+	return nil
 }
