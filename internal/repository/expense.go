@@ -21,7 +21,7 @@ func NewExpenseRepository(db *pgxpool.Pool) domain.ExpenseRepository {
 func (r *expenseRepository) Create(ctx context.Context, e *domain.Expense) error {
 	query := `
 		INSERT INTO expenses (household_id, category_id, description, amount_cents, expense_date, is_shared, paid_by, assigned_to)
-		VALUES ($1, nullif($2,''), $3, $4, $5, $6, $7, nullif($8,''))
+		VALUES ($1, nullif($2,'')::uuid, $3, $4, $5, $6, $7, nullif($8,'')::uuid)
 		RETURNING id, created_at, updated_at`
 
 	err := r.db.QueryRow(ctx, query,
