@@ -9,7 +9,10 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lguilherme/contas/internal/config"
 	"github.com/lguilherme/contas/internal/handler"
+	appMiddleware "github.com/lguilherme/contas/internal/middleware"
 	"github.com/lguilherme/contas/internal/migrate"
+	"github.com/lguilherme/contas/internal/repository"
+	"github.com/lguilherme/contas/internal/service"
 )
 
 func main() {
@@ -41,6 +44,12 @@ func main() {
 	}))
 
 	handler.RegisterHealthRoutes(e, db)
+
+	userRepo := repository.NewUserRepository(db)
+	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
+	authHandler := handler.NewAuthHandler(authService)
+	authMW := appMiddleware.JWTAuth(authService)
+	handler.RegisterAuthRoutes(e, authHandler, authMW)
 
 	port := cfg.Port
 	if port == "" {

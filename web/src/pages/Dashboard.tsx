@@ -1,12 +1,27 @@
+import { useAuth } from '../lib/auth';
+
 export default function Dashboard() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
-        <div className="mx-auto max-w-7xl px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Contas</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Controle de despesas domésticas
-          </p>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Contas</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Controle de despesas domésticas
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-600">{user?.email}</span>
+            <button
+              onClick={logout}
+              className="rounded-md bg-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-300"
+            >
+              Sair
+            </button>
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-7xl px-4 py-8">
