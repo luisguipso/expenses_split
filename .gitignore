@@ -6,3 +6,4 @@ tmp/
 vendor/
 web/node_modules/
 web/dist/
+coverage.out
