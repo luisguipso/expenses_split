@@ -7,6 +7,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/lguilherme/contas/internal/config"
 	"github.com/lguilherme/contas/internal/migrate"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -28,8 +29,12 @@ func main() {
 
 	ctx := context.Background()
 
-	// bcrypt hash for "senha123"
-	passwordHash := "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"
+	// Generate bcrypt hash for "senha123"
+	hash, err := bcrypt.GenerateFromPassword([]byte("senha123"), bcrypt.DefaultCost)
+	if err != nil {
+		log.Fatalf("Failed to generate password hash: %v", err)
+	}
+	passwordHash := string(hash)
 
 	log.Println("Seeding users...")
 	_, err = db.Exec(ctx, `
@@ -82,10 +87,10 @@ func main() {
 
 	log.Println("Seeding fixed bills...")
 	_, err = db.Exec(ctx, `
-		INSERT INTO fixed_bills (household_id, category_id, description, amount_cents, due_day, is_shared) VALUES
-			('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'Aluguel mensal', 200000, 5, true),
-			('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'Internet fibra', 12990, 10, true),
-			('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000006', 'Gás encanado', 8500, 15, true)
+		INSERT INTO fixed_bills (household_id, category_id, description, amount_cents, due_day, is_shared, paid_by) VALUES
+			('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'Aluguel mensal', 200000, 5, true, 'a0000000-0000-0000-0000-000000000001'),
+			('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'Internet fibra', 12990, 10, true, 'a0000000-0000-0000-0000-000000000001'),
+			('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000006', 'Gás encanado', 8500, 15, true, 'a0000000-0000-0000-0000-000000000001')
 	`)
 	if err != nil {
 		log.Fatalf("Failed to seed fixed bills: %v", err)

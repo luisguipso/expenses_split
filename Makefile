@@ -1,4 +1,4 @@
-.PHONY: dev run build test test-integration migrate-up migrate-down docker-up docker-down web-dev web-build
+.PHONY: dev run build test test-integration migrate-up migrate-down docker-up docker-down web-dev web-build seed clean
 
 # Backend
 dev:
@@ -34,6 +34,9 @@ migrate-down:
 
 seed:
 	go run ./cmd/seed
+
+clean:
+	go run ./cmd/clean
 
 # Frontend
 web-dev:
