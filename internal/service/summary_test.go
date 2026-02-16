@@ -49,13 +49,34 @@ func threeMembersEqualSalary() func(ctx context.Context, householdID string) ([]
 	}
 }
 
+func noSnapshots() func(ctx context.Context, householdID string, year, month int) ([]domain.FixedBillSnapshot, error) {
+	return func(ctx context.Context, householdID string, year, month int) ([]domain.FixedBillSnapshot, error) {
+		return nil, nil
+	}
+}
+
+func snapshotCreateOK() func(ctx context.Context, snapshot *domain.FixedBillSnapshot) error {
+	return func(ctx context.Context, snapshot *domain.FixedBillSnapshot) error {
+		snapshot.ID = "snap-" + snapshot.FixedBillID
+		snapshot.FrozenAt = time.Now()
+		return nil
+	}
+}
+
 func makeSummaryService(
 	hhRepo *mock.HouseholdRepository,
 	expRepo *mock.ExpenseRepository,
 	billRepo *mock.FixedBillRepository,
 	sumRepo *mock.SummaryRepository,
+	snapRepo *mock.FixedBillSnapshotRepository,
 ) domain.SummaryService {
-	return NewSummaryService(sumRepo, hhRepo, expRepo, billRepo)
+	if snapRepo == nil {
+		snapRepo = &mock.FixedBillSnapshotRepository{
+			FindByMonthFn: noSnapshots(),
+			CreateFn:      snapshotCreateOK(),
+		}
+	}
+	return NewSummaryService(sumRepo, hhRepo, expRepo, billRepo, snapRepo)
 }
 
 // --- Generate tests ---
@@ -78,7 +99,7 @@ func TestSummaryService_Generate_SharedOnlyProportional(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -138,7 +159,7 @@ func TestSummaryService_Generate_PersonalExpenses(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -191,7 +212,7 @@ func TestSummaryService_Generate_MixedSharedAndPersonal(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -239,7 +260,7 @@ func TestSummaryService_Generate_FixedBillsSharedAndPersonal(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -284,7 +305,7 @@ func TestSummaryService_Generate_EqualSalaryThreeWay(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -328,7 +349,7 @@ func TestSummaryService_Generate_InactiveBillsExcluded(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -355,7 +376,7 @@ func TestSummaryService_Generate_PersonalExpenseNoAssignedTo(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -377,7 +398,7 @@ func TestSummaryService_Generate_ZeroTotalNoData(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -392,7 +413,7 @@ func TestSummaryService_Generate_ZeroTotalNoData(t *testing.T) {
 
 func TestSummaryService_Generate_NotMember(t *testing.T) {
 	hhRepo := &mock.HouseholdRepository{GetMemberFn: memberForbidden()}
-	svc := NewSummaryService(nil, hhRepo, nil, nil)
+	svc := NewSummaryService(nil, hhRepo, nil, nil, nil)
 
 	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "user-1")
 	if !errors.Is(err, domain.ErrForbidden) {
@@ -413,7 +434,7 @@ func TestSummaryService_Generate_NoSalary(t *testing.T) {
 	expRepo := &mock.ExpenseRepository{ListByHouseholdFn: noExpenses()}
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 
-	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo)
+	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo, &mock.FixedBillSnapshotRepository{FindByMonthFn: noSnapshots(), CreateFn: snapshotCreateOK()})
 	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if !errors.Is(err, domain.ErrNoMembersWithSalary) {
 		t.Errorf("expected ErrNoMembersWithSalary, got %v", err)
@@ -440,7 +461,7 @@ func TestSummaryService_Generate_SingleMember(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -484,7 +505,7 @@ func TestSummaryService_Generate_UnevenRoundingTwoMembers(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -531,7 +552,7 @@ func TestSummaryService_Generate_LargeRealisticAmounts(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -584,7 +605,7 @@ func TestSummaryService_Generate_TotalAllCentsIncludesPersonal(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -633,7 +654,7 @@ func TestSummaryService_Generate_MultipleSharedExpensesAndBills(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -669,7 +690,7 @@ func TestSummaryService_Generate_ExpenseRepoError(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err == nil {
 		t.Fatal("expected error from expense repo, got nil")
@@ -691,7 +712,7 @@ func TestSummaryService_Generate_BillRepoError(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err == nil {
 		t.Fatal("expected error from bill repo, got nil")
@@ -706,7 +727,7 @@ func TestSummaryService_Generate_MemberListError(t *testing.T) {
 		},
 	}
 
-	svc := NewSummaryService(nil, hhRepo, nil, nil)
+	svc := NewSummaryService(nil, hhRepo, nil, nil, nil)
 	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err == nil {
 		t.Fatal("expected error from member list, got nil")
@@ -726,7 +747,7 @@ func TestSummaryService_Generate_UpsertError(t *testing.T) {
 		},
 	}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err == nil {
 		t.Fatal("expected error from upsert, got nil")
@@ -755,7 +776,7 @@ func TestSummaryService_Dashboard_NoSalaryGraceful(t *testing.T) {
 	}
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 
-	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo)
+	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo, &mock.FixedBillSnapshotRepository{FindByMonthFn: noSnapshots(), CreateFn: snapshotCreateOK()})
 	dash, err := svc.GetDashboard(context.Background(), "hh-1", "u1")
 	if err != nil {
 		t.Fatalf("Dashboard should succeed with no salary, got: %v", err)
@@ -797,7 +818,7 @@ func TestSummaryService_Dashboard_Success(t *testing.T) {
 		},
 	}
 
-	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo)
+	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo, &mock.FixedBillSnapshotRepository{FindByMonthFn: noSnapshots(), CreateFn: snapshotCreateOK()})
 	dash, err := svc.GetDashboard(context.Background(), "hh-1", "u1")
 	if err != nil {
 		t.Fatalf("GetDashboard failed: %v", err)
@@ -833,7 +854,7 @@ func TestSummaryService_Dashboard_Success(t *testing.T) {
 
 func TestSummaryService_Dashboard_NotMember(t *testing.T) {
 	hhRepo := &mock.HouseholdRepository{GetMemberFn: memberForbidden()}
-	svc := NewSummaryService(nil, hhRepo, nil, nil)
+	svc := NewSummaryService(nil, hhRepo, nil, nil, nil)
 
 	_, err := svc.GetDashboard(context.Background(), "hh-1", "user-1")
 	if !errors.Is(err, domain.ErrForbidden) {
@@ -1000,7 +1021,7 @@ func TestSummaryService_Balance_PayerGetsPositiveBalance(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -1057,7 +1078,7 @@ func TestSummaryService_Balance_ExactPayment(t *testing.T) {
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -1102,7 +1123,7 @@ func TestSummaryService_Balance_MixedSharedPersonalWithPayments(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -1157,7 +1178,7 @@ func TestSummaryService_Balance_BalancesSumToZeroInvariant(t *testing.T) {
 	}
 	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo)
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
 	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
 	if err != nil {
 		t.Fatalf("Generate failed: %v", err)
@@ -1202,7 +1223,7 @@ func TestSummaryService_Dashboard_BalanceFields(t *testing.T) {
 	}
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 
-	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo)
+	svc := NewSummaryService(nil, hhRepo, expRepo, billRepo, &mock.FixedBillSnapshotRepository{FindByMonthFn: noSnapshots(), CreateFn: snapshotCreateOK()})
 	dash, err := svc.GetDashboard(context.Background(), "hh-1", "u1")
 	if err != nil {
 		t.Fatalf("GetDashboard failed: %v", err)
@@ -1254,7 +1275,7 @@ func TestSummaryService_GetUserDetail_SharedItems(t *testing.T) {
 		},
 	}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, &mock.SummaryRepository{})
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, &mock.SummaryRepository{}, nil)
 	detail, err := svc.GetUserDetail(context.Background(), "hh-1", 2024, 1, "u1", "u1")
 	if err != nil {
 		t.Fatalf("GetUserDetail failed: %v", err)
@@ -1334,7 +1355,7 @@ func TestSummaryService_GetUserDetail_PersonalItems(t *testing.T) {
 	}
 	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
 
-	svc := makeSummaryService(hhRepo, expRepo, billRepo, &mock.SummaryRepository{})
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, &mock.SummaryRepository{}, nil)
 	detail, err := svc.GetUserDetail(context.Background(), "hh-1", 2024, 1, "u2", "u1")
 	if err != nil {
 		t.Fatalf("GetUserDetail failed: %v", err)

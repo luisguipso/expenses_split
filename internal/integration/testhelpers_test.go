@@ -69,6 +69,7 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	fixedBillRepo := repository.NewFixedBillRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db)
 	summaryRepo := repository.NewSummaryRepository(db)
+	snapshotRepo := repository.NewFixedBillSnapshotRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	tokenService := service.NewJWTTokenService(jwtSecret)
@@ -77,7 +78,7 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
 	expenseService := service.NewExpenseService(expenseRepo, householdRepo)
-	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo)
+	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo, snapshotRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	householdHandler := handler.NewHouseholdHandler(householdService)

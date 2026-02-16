@@ -237,6 +237,32 @@ func (m *FixedBillRepository) Delete(ctx context.Context, id string) error {
 	return m.DeleteFn(ctx, id)
 }
 
+// FixedBillSnapshotRepository
+
+type FixedBillSnapshotRepository struct {
+	CreateFn      func(ctx context.Context, snapshot *domain.FixedBillSnapshot) error
+	FindByMonthFn func(ctx context.Context, householdID string, year, month int) ([]domain.FixedBillSnapshot, error)
+	FindByIDFn    func(ctx context.Context, id string) (*domain.FixedBillSnapshot, error)
+	UpdateFn      func(ctx context.Context, snapshot *domain.FixedBillSnapshot) error
+	DeleteFn      func(ctx context.Context, id string) error
+}
+
+func (m *FixedBillSnapshotRepository) Create(ctx context.Context, s *domain.FixedBillSnapshot) error {
+	return m.CreateFn(ctx, s)
+}
+func (m *FixedBillSnapshotRepository) FindByMonth(ctx context.Context, householdID string, year, month int) ([]domain.FixedBillSnapshot, error) {
+	return m.FindByMonthFn(ctx, householdID, year, month)
+}
+func (m *FixedBillSnapshotRepository) FindByID(ctx context.Context, id string) (*domain.FixedBillSnapshot, error) {
+	return m.FindByIDFn(ctx, id)
+}
+func (m *FixedBillSnapshotRepository) Update(ctx context.Context, s *domain.FixedBillSnapshot) error {
+	return m.UpdateFn(ctx, s)
+}
+func (m *FixedBillSnapshotRepository) Delete(ctx context.Context, id string) error {
+	return m.DeleteFn(ctx, id)
+}
+
 // FixedBillService
 
 type FixedBillService struct {

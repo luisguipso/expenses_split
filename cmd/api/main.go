@@ -41,6 +41,7 @@ func main() {
 	fixedBillRepo := repository.NewFixedBillRepository(db)
 	expenseRepo := repository.NewExpenseRepository(db)
 	summaryRepo := repository.NewSummaryRepository(db)
+	snapshotRepo := repository.NewFixedBillSnapshotRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	// Services
@@ -50,7 +51,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
 	expenseService := service.NewExpenseService(expenseRepo, householdRepo)
-	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo)
+	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo, snapshotRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)

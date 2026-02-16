@@ -16,6 +16,7 @@ type summaryService struct {
 	householdRepo domain.HouseholdRepository
 	expenseRepo   domain.ExpenseRepository
 	fixedBillRepo domain.FixedBillRepository
+	snapshotRepo  domain.FixedBillSnapshotRepository
 }
 
 func NewSummaryService(
@@ -23,12 +24,14 @@ func NewSummaryService(
 	householdRepo domain.HouseholdRepository,
 	expenseRepo domain.ExpenseRepository,
 	fixedBillRepo domain.FixedBillRepository,
+	snapshotRepo domain.FixedBillSnapshotRepository,
 ) domain.SummaryService {
 	return &summaryService{
 		summaryRepo:   summaryRepo,
 		householdRepo: householdRepo,
 		expenseRepo:   expenseRepo,
 		fixedBillRepo: fixedBillRepo,
+		snapshotRepo:  snapshotRepo,
 	}
 }
 
@@ -37,9 +40,27 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		return nil, err
 	}
 
-	breakdown, totalShared, err := s.calculate(ctx, householdID, year, month)
+	breakdown, totalShared, bills, err := s.calculate(ctx, householdID, year, month)
 	if err != nil {
 		return nil, err
+	}
+
+	fixedBillResponses := make([]domain.FixedBillSnapshotResponse, len(bills))
+	for i, b := range bills {
+		fixedBillResponses[i] = domain.FixedBillSnapshotResponse{
+			ID:           b.SnapshotID,
+			FixedBillID:  b.FixedBillID,
+			CategoryID:   b.CategoryID,
+			CategoryName: b.CategoryName,
+			Description:  b.Description,
+			AmountCents:  b.AmountCents,
+			DueDay:       b.DueDay,
+			IsShared:     b.IsShared,
+			PaidBy:       b.PaidBy,
+			PaidByName:   b.PaidByName,
+			AssignedTo:   b.AssignedTo,
+			IsFrozen:     b.IsFrozen,
+		}
 	}
 
 	// Persist the summary
@@ -77,6 +98,7 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		GeneratedAt:      summary.GeneratedAt.Format(time.RFC3339),
 		Items:            breakdown,
 		Settlements:      minimizeTransfers(breakdown),
+		FixedBills:       fixedBillResponses,
 	}, nil
 }
 
@@ -101,16 +123,10 @@ func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID s
 		return nil, fmt.Errorf("list expenses: %w", err)
 	}
 
-	// Get active fixed bills
-	allBills, err := s.fixedBillRepo.ListByHousehold(ctx, householdID)
+	// Get resolved fixed bills (snapshot or live)
+	resolvedBills, err := s.resolveFixedBills(ctx, householdID, year, month)
 	if err != nil {
-		return nil, fmt.Errorf("list fixed bills: %w", err)
-	}
-	var activeBills []domain.FixedBill
-	for _, b := range allBills {
-		if b.IsActive {
-			activeBills = append(activeBills, b)
-		}
+		return nil, err
 	}
 
 	var totalExpenses, totalFixedBills, totalShared, totalPersonal int64
@@ -123,7 +139,7 @@ func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID s
 			totalPersonal += e.AmountCents
 		}
 	}
-	for _, b := range activeBills {
+	for _, b := range resolvedBills {
 		totalFixedBills += b.AmountCents
 		if b.IsShared {
 			totalShared += b.AmountCents
@@ -132,7 +148,7 @@ func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID s
 		}
 	}
 
-	breakdown, _, err := s.calculate(ctx, householdID, year, month)
+	breakdown, _, _, err := s.calculate(ctx, householdID, year, month)
 	if err != nil && !errors.Is(err, domain.ErrNoMembersWithSalary) {
 		return nil, err
 	}
@@ -146,18 +162,157 @@ func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID s
 		TotalShared:     totalShared,
 		TotalPersonal:   totalPersonal,
 		ExpenseCount:    len(expenses),
-		FixedBillCount:  len(activeBills),
+		FixedBillCount:  len(resolvedBills),
 		MemberBreakdown: breakdown,
 	}, nil
 }
 
+// resolvedBill represents a fixed bill's effective values for a given month,
+// either from the live bill or from a frozen snapshot.
+type resolvedBill struct {
+	FixedBillID  string
+	CategoryID   string
+	CategoryName string
+	Description  string
+	AmountCents  int64
+	DueDay       int
+	IsShared     bool
+	PaidBy       string
+	PaidByName   string
+	AssignedTo   string
+	IsFrozen     bool
+	SnapshotID   string
+}
+
+// dueDayPassed checks if a bill's due_day has passed for the given year/month.
+// If due_day > days in month, it's treated as the last day of the month.
+func dueDayPassed(year, month, dueDay int, now time.Time) bool {
+	lastDay := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, now.Location()).Day()
+	effectiveDueDay := dueDay
+	if effectiveDueDay > lastDay {
+		effectiveDueDay = lastDay
+	}
+	dueDate := time.Date(year, time.Month(month), effectiveDueDay, 23, 59, 59, 0, now.Location())
+	return now.After(dueDate)
+}
+
+// resolveFixedBills returns the effective fixed bill values for a given month.
+// Bills whose due_day has passed are frozen (snapshotted); others use live values.
+func (s *summaryService) resolveFixedBills(ctx context.Context, householdID string, year, month int) ([]resolvedBill, error) {
+	now := time.Now()
+
+	allBills, err := s.fixedBillRepo.ListByHousehold(ctx, householdID)
+	if err != nil {
+		return nil, fmt.Errorf("list fixed bills: %w", err)
+	}
+
+	existingSnapshots, err := s.snapshotRepo.FindByMonth(ctx, householdID, year, month)
+	if err != nil {
+		return nil, fmt.Errorf("list snapshots: %w", err)
+	}
+
+	snapshotByBillID := make(map[string]domain.FixedBillSnapshot, len(existingSnapshots))
+	for _, snap := range existingSnapshots {
+		snapshotByBillID[snap.FixedBillID] = snap
+	}
+
+	// Build category/user name lookup from the original bills
+	categoryNameByID := make(map[string]string)
+	paidByNameByID := make(map[string]string)
+	for _, b := range allBills {
+		if b.CategoryID != "" && b.CategoryName != "" {
+			categoryNameByID[b.CategoryID] = b.CategoryName
+		}
+		if b.PaidBy != "" && b.PaidByName != "" {
+			paidByNameByID[b.PaidBy] = b.PaidByName
+		}
+	}
+
+	var resolved []resolvedBill
+	for _, b := range allBills {
+		if !b.IsActive {
+			continue
+		}
+
+		if snap, ok := snapshotByBillID[b.ID]; ok {
+			// Snapshot already exists — use it
+			resolved = append(resolved, resolvedBill{
+				FixedBillID:  b.ID,
+				CategoryID:   snap.CategoryID,
+				CategoryName: categoryNameByID[snap.CategoryID],
+				Description:  snap.Description,
+				AmountCents:  snap.AmountCents,
+				DueDay:       snap.DueDay,
+				IsShared:     snap.IsShared,
+				PaidBy:       snap.PaidBy,
+				PaidByName:   paidByNameByID[snap.PaidBy],
+				AssignedTo:   snap.AssignedTo,
+				IsFrozen:     true,
+				SnapshotID:   snap.ID,
+			})
+			continue
+		}
+
+		if dueDayPassed(year, month, b.DueDay, now) {
+			// Due day passed, create snapshot
+			snap := &domain.FixedBillSnapshot{
+				FixedBillID: b.ID,
+				HouseholdID: householdID,
+				Year:        year,
+				Month:       month,
+				CategoryID:  b.CategoryID,
+				Description: b.Description,
+				AmountCents: b.AmountCents,
+				DueDay:      b.DueDay,
+				IsShared:    b.IsShared,
+				PaidBy:      b.PaidBy,
+				AssignedTo:  b.AssignedTo,
+			}
+			if err := s.snapshotRepo.Create(ctx, snap); err != nil {
+				return nil, fmt.Errorf("create snapshot for bill %s: %w", b.ID, err)
+			}
+			resolved = append(resolved, resolvedBill{
+				FixedBillID:  b.ID,
+				CategoryID:   snap.CategoryID,
+				CategoryName: categoryNameByID[snap.CategoryID],
+				Description:  snap.Description,
+				AmountCents:  snap.AmountCents,
+				DueDay:       snap.DueDay,
+				IsShared:     snap.IsShared,
+				PaidBy:       snap.PaidBy,
+				PaidByName:   paidByNameByID[snap.PaidBy],
+				AssignedTo:   snap.AssignedTo,
+				IsFrozen:     true,
+				SnapshotID:   snap.ID,
+			})
+		} else {
+			// Due day not yet passed — use live values
+			resolved = append(resolved, resolvedBill{
+				FixedBillID:  b.ID,
+				CategoryID:   b.CategoryID,
+				CategoryName: b.CategoryName,
+				Description:  b.Description,
+				AmountCents:  b.AmountCents,
+				DueDay:       b.DueDay,
+				IsShared:     b.IsShared,
+				PaidBy:       b.PaidBy,
+				PaidByName:   b.PaidByName,
+				AssignedTo:   b.AssignedTo,
+				IsFrozen:     false,
+			})
+		}
+	}
+
+	return resolved, nil
+}
+
 // calculate computes the proportional split for a given month.
 // Returns per-member breakdown and total shared amount.
-func (s *summaryService) calculate(ctx context.Context, householdID string, year, month int) ([]domain.SummaryItemResponse, int64, error) {
+func (s *summaryService) calculate(ctx context.Context, householdID string, year, month int) ([]domain.SummaryItemResponse, int64, []resolvedBill, error) {
 	// 1. Get members with salaries
 	members, err := s.householdRepo.ListMembers(ctx, householdID)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list members: %w", err)
+		return nil, 0, nil, fmt.Errorf("list members: %w", err)
 	}
 
 	var totalSalary int64
@@ -165,7 +320,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		totalSalary += m.SalaryCents
 	}
 	if totalSalary == 0 {
-		return nil, 0, domain.ErrNoMembersWithSalary
+		return nil, 0, nil, domain.ErrNoMembersWithSalary
 	}
 
 	// 2. Get expenses for this month
@@ -173,13 +328,13 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		Year: year, Month: month,
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("list expenses: %w", err)
+		return nil, 0, nil, fmt.Errorf("list expenses: %w", err)
 	}
 
-	// 3. Get active fixed bills
-	allBills, err := s.fixedBillRepo.ListByHousehold(ctx, householdID)
+	// 3. Resolve fixed bills (snapshot or live)
+	bills, err := s.resolveFixedBills(ctx, householdID, year, month)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list fixed bills: %w", err)
+		return nil, 0, nil, err
 	}
 
 	// 4. Calculate totals
@@ -200,10 +355,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		}
 	}
 
-	for _, b := range allBills {
-		if !b.IsActive {
-			continue
-		}
+	for _, b := range bills {
 		paidByUser[b.PaidBy] += b.AmountCents
 		if b.IsShared {
 			totalShared += b.AmountCents
@@ -245,7 +397,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		}
 	}
 
-	return breakdown, totalShared, nil
+	return breakdown, totalShared, bills, nil
 }
 
 // minimizeTransfers computes the minimum number of transfers to settle all balances.
@@ -352,9 +504,9 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 		return nil, fmt.Errorf("list expenses: %w", err)
 	}
 
-	allBills, err := s.fixedBillRepo.ListByHousehold(ctx, householdID)
+	allBills, err := s.resolveFixedBills(ctx, householdID, year, month)
 	if err != nil {
-		return nil, fmt.Errorf("list fixed bills: %w", err)
+		return nil, err
 	}
 
 	var items []domain.SummaryDetailItem
@@ -362,10 +514,6 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 
 	// Fixed bills — all shared bills, plus personal bills assigned to/paid by target user
 	for _, b := range allBills {
-		if !b.IsActive {
-			continue
-		}
-		
 		// Track what this user actually paid
 		if b.PaidBy == targetUserID {
 			totalPaid += b.AmountCents
@@ -385,7 +533,6 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 			})
 			totalShared += shareCents
 		} else if b.AssignedTo == targetUserID || (b.AssignedTo == "" && b.PaidBy == targetUserID) {
-			// Only include personal bills if assigned to or paid by this user
 			items = append(items, domain.SummaryDetailItem{
 				Description:    b.Description,
 				Type:           "fixed_bill",
