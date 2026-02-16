@@ -176,6 +176,33 @@ type ExpenseResponse struct {
 	AssignedTo   string `json:"assigned_to,omitempty"`
 }
 
+// Fixed Bill Snapshot DTOs
+
+type UpdateFixedBillSnapshotInput struct {
+	CategoryID  string `json:"category_id"`
+	Description string `json:"description"`
+	AmountCents int64  `json:"amount_cents"`
+	DueDay      int    `json:"due_day"`
+	IsShared    bool   `json:"is_shared"`
+	PaidBy      string `json:"paid_by"`
+	AssignedTo  string `json:"assigned_to"`
+}
+
+type FixedBillSnapshotResponse struct {
+	ID           string `json:"id"`
+	FixedBillID  string `json:"fixed_bill_id"`
+	CategoryID   string `json:"category_id,omitempty"`
+	CategoryName string `json:"category_name,omitempty"`
+	Description  string `json:"description"`
+	AmountCents  int64  `json:"amount_cents"`
+	DueDay       int    `json:"due_day"`
+	IsShared     bool   `json:"is_shared"`
+	PaidBy       string `json:"paid_by"`
+	PaidByName   string `json:"paid_by_name,omitempty"`
+	AssignedTo   string `json:"assigned_to,omitempty"`
+	IsFrozen     bool   `json:"is_frozen"`
+}
+
 // Summary DTOs
 
 type SettlementTransfer struct {
@@ -199,15 +226,16 @@ type SummaryItemResponse struct {
 }
 
 type SummaryResponse struct {
-	ID               string                `json:"id"`
-	HouseholdID      string                `json:"household_id"`
-	Year             int                   `json:"year"`
-	Month            int                   `json:"month"`
-	TotalSharedCents int64                 `json:"total_shared_cents"`
-	TotalAllCents    int64                 `json:"total_all_cents"`
-	GeneratedAt      string                `json:"generated_at"`
-	Items            []SummaryItemResponse `json:"items"`
-	Settlements      []SettlementTransfer  `json:"settlements"`
+	ID               string                      `json:"id"`
+	HouseholdID      string                      `json:"household_id"`
+	Year             int                         `json:"year"`
+	Month            int                         `json:"month"`
+	TotalSharedCents int64                       `json:"total_shared_cents"`
+	TotalAllCents    int64                       `json:"total_all_cents"`
+	GeneratedAt      string                      `json:"generated_at"`
+	Items            []SummaryItemResponse       `json:"items"`
+	Settlements      []SettlementTransfer        `json:"settlements"`
+	FixedBills       []FixedBillSnapshotResponse `json:"fixed_bills"`
 }
 
 type SummaryDetailItem struct {

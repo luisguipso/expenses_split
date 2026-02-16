@@ -94,6 +94,14 @@ type ExpenseService interface {
 	Delete(ctx context.Context, id, userID string) error
 }
 
+type FixedBillSnapshotRepository interface {
+	Create(ctx context.Context, snapshot *FixedBillSnapshot) error
+	FindByMonth(ctx context.Context, householdID string, year, month int) ([]FixedBillSnapshot, error)
+	FindByID(ctx context.Context, id string) (*FixedBillSnapshot, error)
+	Update(ctx context.Context, snapshot *FixedBillSnapshot) error
+	Delete(ctx context.Context, id string) error
+}
+
 type SummaryRepository interface {
 	Upsert(ctx context.Context, summary *MonthlySummary) error
 	FindByMonth(ctx context.Context, householdID string, year, month int) (*MonthlySummary, error)
