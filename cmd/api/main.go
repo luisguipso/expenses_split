@@ -50,6 +50,7 @@ func main() {
 	householdService := service.NewHouseholdService(householdRepo)
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
+	snapshotService := service.NewFixedBillSnapshotService(snapshotRepo, householdRepo)
 	expenseService := service.NewExpenseService(expenseRepo, householdRepo)
 	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo, snapshotRepo)
 
@@ -58,6 +59,7 @@ func main() {
 	householdHandler := handler.NewHouseholdHandler(householdService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	fixedBillHandler := handler.NewFixedBillHandler(fixedBillService)
+	snapshotHandler := handler.NewFixedBillSnapshotHandler(snapshotService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
 	authMW := appMiddleware.JWTAuth(tokenService)
@@ -80,6 +82,7 @@ func main() {
 	handler.RegisterHouseholdRoutes(e, householdHandler, authMW)
 	handler.RegisterCategoryRoutes(e, categoryHandler, authMW)
 	handler.RegisterFixedBillRoutes(e, fixedBillHandler, authMW)
+	handler.RegisterFixedBillSnapshotRoutes(e, snapshotHandler, authMW)
 	handler.RegisterExpenseRoutes(e, expenseHandler, authMW)
 	handler.RegisterSummaryRoutes(e, summaryHandler, authMW)
 

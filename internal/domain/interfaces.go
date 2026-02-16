@@ -102,6 +102,10 @@ type FixedBillSnapshotRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
+type FixedBillSnapshotService interface {
+	Update(ctx context.Context, id string, input UpdateFixedBillSnapshotInput, userID string) (*FixedBillSnapshot, error)
+}
+
 type SummaryRepository interface {
 	Upsert(ctx context.Context, summary *MonthlySummary) error
 	FindByMonth(ctx context.Context, householdID string, year, month int) (*MonthlySummary, error)

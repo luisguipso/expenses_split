@@ -77,6 +77,7 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	householdService := service.NewHouseholdService(householdRepo)
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
+	snapshotService := service.NewFixedBillSnapshotService(snapshotRepo, householdRepo)
 	expenseService := service.NewExpenseService(expenseRepo, householdRepo)
 	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo, snapshotRepo)
 
@@ -84,6 +85,7 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	householdHandler := handler.NewHouseholdHandler(householdService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	fixedBillHandler := handler.NewFixedBillHandler(fixedBillService)
+	snapshotHandler := handler.NewFixedBillSnapshotHandler(snapshotService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
 	authMW := appMiddleware.JWTAuth(tokenService)
@@ -108,6 +110,7 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	handler.RegisterHouseholdRoutes(e, householdHandler, authMW)
 	handler.RegisterCategoryRoutes(e, categoryHandler, authMW)
 	handler.RegisterFixedBillRoutes(e, fixedBillHandler, authMW)
+	handler.RegisterFixedBillSnapshotRoutes(e, snapshotHandler, authMW)
 	handler.RegisterExpenseRoutes(e, expenseHandler, authMW)
 	handler.RegisterSummaryRoutes(e, summaryHandler, authMW)
 
@@ -118,6 +121,7 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 func cleanDB(t *testing.T) {
 	t.Helper()
 	tables := []string{
+		"fixed_bill_snapshots",
 		"monthly_summary_items",
 		"monthly_summaries",
 		"expenses",

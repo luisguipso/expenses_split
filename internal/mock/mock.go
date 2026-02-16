@@ -285,6 +285,16 @@ func (m *FixedBillService) Delete(ctx context.Context, id, userID string) error 
 	return m.DeleteFn(ctx, id, userID)
 }
 
+// FixedBillSnapshotService
+
+type FixedBillSnapshotService struct {
+	UpdateFn func(ctx context.Context, id string, input domain.UpdateFixedBillSnapshotInput, userID string) (*domain.FixedBillSnapshot, error)
+}
+
+func (m *FixedBillSnapshotService) Update(ctx context.Context, id string, input domain.UpdateFixedBillSnapshotInput, userID string) (*domain.FixedBillSnapshot, error) {
+	return m.UpdateFn(ctx, id, input, userID)
+}
+
 // ExpenseRepository
 
 type ExpenseRepository struct {
