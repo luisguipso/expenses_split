@@ -30,6 +30,32 @@ export interface SummaryResponse {
   generated_at: string;
   items: SummaryItem[];
   settlements: SettlementTransfer[];
+  fixed_bills: FixedBillSnapshot[];
+}
+
+export interface FixedBillSnapshot {
+  id: string;
+  fixed_bill_id: string;
+  category_id?: string;
+  category_name?: string;
+  description: string;
+  amount_cents: number;
+  due_day: number;
+  is_shared: boolean;
+  paid_by: string;
+  paid_by_name?: string;
+  assigned_to?: string;
+  is_frozen: boolean;
+}
+
+export interface UpdateFixedBillSnapshotInput {
+  category_id: string;
+  description: string;
+  amount_cents: number;
+  due_day: number;
+  is_shared: boolean;
+  paid_by: string;
+  assigned_to: string;
 }
 
 export interface DashboardResponse {
@@ -84,6 +110,14 @@ export const summaryApi = {
     api
       .get<SummaryDetailResponse>(
         `/households/${householdId}/summary/detail?year=${year}&month=${month}&user_id=${userId}`
+      )
+      .then((r) => r.data),
+
+  updateSnapshot: (householdId: string, snapshotId: string, data: UpdateFixedBillSnapshotInput) =>
+    api
+      .put<FixedBillSnapshot>(
+        `/households/${householdId}/bills/snapshots/${snapshotId}`,
+        data
       )
       .then((r) => r.data),
 };

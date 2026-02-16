@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useHousehold } from '../lib/household';
-import { summaryApi, SummaryResponse } from '../lib/summary-api';
+import { summaryApi, SummaryResponse, FixedBillSnapshot } from '../lib/summary-api';
 import Layout from '../components/Layout';
 import Spinner from '../components/Spinner';
 import ErrorAlert from '../components/ErrorAlert';
 import SummaryDetailModal from '../components/SummaryDetailModal';
+import SnapshotEditModal from '../components/SnapshotEditModal';
 
 function formatCurrency(cents: number): string {
   return ((cents ?? 0) / 100).toLocaleString('pt-BR', {
@@ -27,6 +28,7 @@ export default function Summary() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
+  const [editingSnapshot, setEditingSnapshot] = useState<FixedBillSnapshot | null>(null);
 
   const fetchSummary = async () => {
     if (!activeHousehold) return;
@@ -114,6 +116,97 @@ export default function Summary() {
               </p>
             </div>
           </div>
+
+          {/* Fixed Bills */}
+          {summary.fixed_bills && summary.fixed_bills.length > 0 && (
+            <div className="mb-6 rounded-lg bg-white shadow">
+              <div className="border-b border-gray-200 px-4 py-4 sm:px-6">
+                <h3 className="text-lg font-semibold text-gray-800">Contas Fixas</h3>
+              </div>
+              {/* Mobile cards */}
+              <div className="divide-y divide-gray-200 sm:hidden">
+                {summary.fixed_bills.map((bill) => (
+                  <div
+                    key={bill.fixed_bill_id}
+                    className={`px-4 py-3 space-y-1 ${bill.is_frozen ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    onClick={() => bill.is_frozen && setEditingSnapshot(bill)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 text-sm">{bill.description}</span>
+                        {bill.is_frozen ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700" title="Valor congelado">
+                            🔒 Congelada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700" title="Valor pode mudar">
+                            Ativa
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900">{formatCurrency(bill.amount_cents)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Dia {bill.due_day} · {bill.is_shared ? 'Compartilhada' : 'Pessoal'}</span>
+                      {bill.paid_by_name && <span>Pago por: {bill.paid_by_name}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop table */}
+              <table className="hidden min-w-full divide-y divide-gray-200 sm:table">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Descrição</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Valor</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium uppercase text-gray-500">Dia</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium uppercase text-gray-500">Tipo</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Pago por</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium uppercase text-gray-500">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {summary.fixed_bills.map((bill) => (
+                    <tr
+                      key={bill.fixed_bill_id}
+                      className={bill.is_frozen ? 'cursor-pointer hover:bg-gray-50 transition-colors' : ''}
+                      onClick={() => bill.is_frozen && setEditingSnapshot(bill)}
+                    >
+                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                        {bill.description}
+                        {bill.category_name && (
+                          <span className="ml-2 text-xs text-gray-400">{bill.category_name}</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-900">
+                        {formatCurrency(bill.amount_cents)}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
+                        {bill.due_day}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
+                        {bill.is_shared ? 'Compartilhada' : 'Pessoal'}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                        {bill.paid_by_name || '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-center text-sm">
+                        {bill.is_frozen ? (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                            🔒 Congelada
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700">
+                            Ativa
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Per-member breakdown */}
           <div className="rounded-lg bg-white shadow">
@@ -264,6 +357,18 @@ export default function Summary() {
           userId={selectedUser.id}
           userName={selectedUser.name}
           onClose={() => setSelectedUser(null)}
+        />
+      )}
+
+      {editingSnapshot && activeHousehold && (
+        <SnapshotEditModal
+          householdId={activeHousehold.id}
+          snapshot={editingSnapshot}
+          onClose={() => setEditingSnapshot(null)}
+          onSaved={() => {
+            setEditingSnapshot(null);
+            fetchSummary();
+          }}
         />
       )}
     </Layout>
