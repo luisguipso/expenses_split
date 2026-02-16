@@ -344,38 +344,72 @@ func TestSummaryDetail_Breakdown(t *testing.T) {
 	}
 
 	items := detail["items"].([]interface{})
-	// Alice paid: Aluguel (shared). She did NOT pay Mercado (Bob paid it).
-	if len(items) != 1 {
-		t.Fatalf("Alice: expected 1 item, got %d", len(items))
+	// Alice now sees ALL shared items: Aluguel (paid by her) + Mercado (paid by Bob)
+	if len(items) != 2 {
+		t.Fatalf("Alice: expected 2 items, got %d", len(items))
 	}
 
-	item := items[0].(map[string]interface{})
-	if item["description"] != "Aluguel" {
-		t.Errorf("expected Aluguel, got %v", item["description"])
+	// Find Aluguel and Mercado in items
+	var aluguelItem, mercadoItem map[string]interface{}
+	for _, rawItem := range items {
+		item := rawItem.(map[string]interface{})
+		if item["description"] == "Aluguel" {
+			aluguelItem = item
+		} else if item["description"] == "Mercado" {
+			mercadoItem = item
+		}
 	}
-	// 62.5% of 200000 = 125000
-	share := int64(item["user_share_cents"].(float64))
+
+	if aluguelItem == nil {
+		t.Fatal("Alice should see Aluguel")
+	}
+	if mercadoItem == nil {
+		t.Fatal("Alice should see Mercado")
+	}
+
+	// Aluguel: 62.5% of 200000 = 125000
+	share := int64(aluguelItem["user_share_cents"].(float64))
 	if share != 125000 {
 		t.Errorf("Aluguel share: expected 125000, got %d", share)
 	}
-	total := int64(item["total_cents"].(float64))
+	total := int64(aluguelItem["total_cents"].(float64))
 	if total != 200000 {
 		t.Errorf("Aluguel total: expected 200000, got %d", total)
 	}
-	if item["type"] != "fixed_bill" {
-		t.Errorf("Aluguel type: expected fixed_bill, got %v", item["type"])
+	if aluguelItem["type"] != "fixed_bill" {
+		t.Errorf("Aluguel type: expected fixed_bill, got %v", aluguelItem["type"])
 	}
-	if item["category_name"] != "Moradia" {
-		t.Errorf("Aluguel category: expected Moradia, got %v", item["category_name"])
+	if aluguelItem["category_name"] != "Moradia" {
+		t.Errorf("Aluguel category: expected Moradia, got %v", aluguelItem["category_name"])
+	}
+	if aluguelItem["paid_by_name"] != "Alice" {
+		t.Errorf("Aluguel paid_by: expected Alice, got %v", aluguelItem["paid_by_name"])
 	}
 
-	// Alice paid R$2000, her share of what she paid = 125000
+	// Mercado: 62.5% of 50000 = 31250
+	mercadoShare := int64(mercadoItem["user_share_cents"].(float64))
+	if mercadoShare != 31250 {
+		t.Errorf("Mercado share: expected 31250, got %d", mercadoShare)
+	}
+	mercadoTotal := int64(mercadoItem["total_cents"].(float64))
+	if mercadoTotal != 50000 {
+		t.Errorf("Mercado total: expected 50000, got %d", mercadoTotal)
+	}
+	if mercadoItem["paid_by_name"] != "Bob" {
+		t.Errorf("Mercado paid_by: expected Bob, got %v", mercadoItem["paid_by_name"])
+	}
+
+	// Alice paid R$2000, her share = 125000 + 31250 = 156250
 	totalPaid := int64(detail["total_paid_cents"].(float64))
 	if totalPaid != 200000 {
 		t.Errorf("Alice total paid: expected 200000, got %d", totalPaid)
 	}
+	totalShared := int64(detail["total_shared_cents"].(float64))
+	if totalShared != 156250 {
+		t.Errorf("Alice total shared: expected 156250, got %d", totalShared)
+	}
 
-	// Now get Bob detail — Bob paid: Mercado (shared) + Farmácia (personal) = 2 items
+	// Now get Bob detail — Bob should see: Aluguel (paid by Alice) + Mercado (paid by him) + Farmácia (personal) = 3 items
 	resp = doGet(t,
 		fmt.Sprintf("/households/%s/summary/detail?year=2024&month=6&user_id=%s", hhID, bob.ID),
 		alice.AccessToken, http.StatusOK)
@@ -384,13 +418,43 @@ func TestSummaryDetail_Breakdown(t *testing.T) {
 	decodeJSON(t, resp, &bobDetail)
 
 	bobItems := bobDetail["items"].([]interface{})
-	if len(bobItems) != 2 {
-		t.Fatalf("Bob: expected 2 items, got %d", len(bobItems))
+	// Bob sees: Aluguel (paid by Alice, shared) + Mercado (paid by him, shared) + Farmácia (personal) = 3 items
+	if len(bobItems) != 3 {
+		t.Fatalf("Bob: expected 3 items, got %d", len(bobItems))
+	}
+
+	// Verify Bob's share of Aluguel: 37.5% of 200000 = 75000
+	var bobAluguel map[string]interface{}
+	for _, rawItem := range bobItems {
+		item := rawItem.(map[string]interface{})
+		if item["description"] == "Aluguel" {
+			bobAluguel = item
+			break
+		}
+	}
+	if bobAluguel == nil {
+		t.Fatal("Bob should see Aluguel")
+	}
+	bobAluguelShare := int64(bobAluguel["user_share_cents"].(float64))
+	if bobAluguelShare != 75000 {
+		t.Errorf("Bob Aluguel share: expected 75000, got %d", bobAluguelShare)
 	}
 
 	bobPaid := int64(bobDetail["total_paid_cents"].(float64))
 	// Bob paid Mercado(50000) + Farmácia(3500) = 53500
 	if bobPaid != 53500 {
 		t.Errorf("Bob paid: expected 53500, got %d", bobPaid)
+	}
+
+	// Bob's total shared: 37.5% of (200000 + 50000) = 37.5% of 250000 = 93750
+	bobTotalShared := int64(bobDetail["total_shared_cents"].(float64))
+	if bobTotalShared != 93750 {
+		t.Errorf("Bob total shared: expected 93750, got %d", bobTotalShared)
+	}
+
+	// Bob's total personal: Farmácia = 3500
+	bobTotalPersonal := int64(bobDetail["total_personal_cents"].(float64))
+	if bobTotalPersonal != 3500 {
+		t.Errorf("Bob total personal: expected 3500, got %d", bobTotalPersonal)
 	}
 }

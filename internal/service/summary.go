@@ -360,12 +360,17 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 	var items []domain.SummaryDetailItem
 	var totalShared, totalPersonal, totalPaid int64
 
-	// Fixed bills — only those paid by the target user
+	// Fixed bills — all shared bills, plus personal bills assigned to/paid by target user
 	for _, b := range allBills {
-		if !b.IsActive || b.PaidBy != targetUserID {
+		if !b.IsActive {
 			continue
 		}
-		totalPaid += b.AmountCents
+		
+		// Track what this user actually paid
+		if b.PaidBy == targetUserID {
+			totalPaid += b.AmountCents
+		}
+		
 		if b.IsShared {
 			shareCents := int64(math.Round(float64(b.AmountCents) * proportion))
 			items = append(items, domain.SummaryDetailItem{
@@ -379,7 +384,8 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 				PaidByName:     nameByID[b.PaidBy],
 			})
 			totalShared += shareCents
-		} else {
+		} else if b.AssignedTo == targetUserID || (b.AssignedTo == "" && b.PaidBy == targetUserID) {
+			// Only include personal bills if assigned to or paid by this user
 			items = append(items, domain.SummaryDetailItem{
 				Description:    b.Description,
 				Type:           "fixed_bill",
@@ -394,12 +400,13 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 		}
 	}
 
-	// Expenses — only those paid by the target user
+	// Expenses — all shared expenses, plus personal expenses assigned to/paid by target user
 	for _, e := range expenses {
-		if e.PaidBy != targetUserID {
-			continue
+		// Track what this user actually paid
+		if e.PaidBy == targetUserID {
+			totalPaid += e.AmountCents
 		}
-		totalPaid += e.AmountCents
+		
 		if e.IsShared {
 			shareCents := int64(math.Round(float64(e.AmountCents) * proportion))
 			items = append(items, domain.SummaryDetailItem{
@@ -414,17 +421,24 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 			})
 			totalShared += shareCents
 		} else {
-			items = append(items, domain.SummaryDetailItem{
-				Description:    e.Description,
-				Type:           "expense",
-				CategoryName:   e.CategoryName,
-				TotalCents:     e.AmountCents,
-				UserShareCents: e.AmountCents,
-				Proportion:     1.0,
-				IsShared:       false,
-				PaidByName:     nameByID[e.PaidBy],
-			})
-			totalPersonal += e.AmountCents
+			// Only include personal expenses if assigned to this user (or paid by if no assignment)
+			assignee := e.AssignedTo
+			if assignee == "" {
+				assignee = e.PaidBy
+			}
+			if assignee == targetUserID {
+				items = append(items, domain.SummaryDetailItem{
+					Description:    e.Description,
+					Type:           "expense",
+					CategoryName:   e.CategoryName,
+					TotalCents:     e.AmountCents,
+					UserShareCents: e.AmountCents,
+					Proportion:     1.0,
+					IsShared:       false,
+					PaidByName:     nameByID[e.PaidBy],
+				})
+				totalPersonal += e.AmountCents
+			}
 		}
 	}
 

@@ -1263,31 +1263,55 @@ func TestSummaryService_GetUserDetail_SharedItems(t *testing.T) {
 	if detail.UserID != "u1" || detail.UserName != "Alice" {
 		t.Errorf("unexpected user: %s / %s", detail.UserID, detail.UserName)
 	}
-	// Alice only paid the expense, not the bill → 1 item
-	if len(detail.Items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(detail.Items))
+	// Alice sees ALL shared items: Mercado (paid by her) + Internet (paid by Bob) → 2 items
+	if len(detail.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(detail.Items))
 	}
 
-	item := detail.Items[0]
-	if item.Description != "Mercado" {
-		t.Errorf("expected Mercado, got %s", item.Description)
-	}
-	if item.Type != "expense" {
-		t.Errorf("type: expected expense, got %s", item.Type)
-	}
-	if item.TotalCents != 10000 {
-		t.Errorf("total: expected 10000, got %d", item.TotalCents)
-	}
-	if item.UserShareCents != 6250 {
-		t.Errorf("share: expected 6250, got %d", item.UserShareCents)
-	}
-	if item.CategoryName != "Alimentação" {
-		t.Errorf("category: expected Alimentação, got %s", item.CategoryName)
+	// Find Mercado and Internet
+	var mercado, internet *domain.SummaryDetailItem
+	for i := range detail.Items {
+		if detail.Items[i].Description == "Mercado" {
+			mercado = &detail.Items[i]
+		} else if detail.Items[i].Description == "Internet" {
+			internet = &detail.Items[i]
+		}
 	}
 
-	if detail.TotalSharedCents != 6250 {
-		t.Errorf("total shared: expected 6250, got %d", detail.TotalSharedCents)
+	if mercado == nil {
+		t.Fatal("expected Mercado item")
 	}
+	if mercado.Type != "expense" {
+		t.Errorf("Mercado type: expected expense, got %s", mercado.Type)
+	}
+	if mercado.TotalCents != 10000 {
+		t.Errorf("Mercado total: expected 10000, got %d", mercado.TotalCents)
+	}
+	if mercado.UserShareCents != 6250 {
+		t.Errorf("Mercado share: expected 6250, got %d", mercado.UserShareCents)
+	}
+	if mercado.CategoryName != "Alimentação" {
+		t.Errorf("Mercado category: expected Alimentação, got %s", mercado.CategoryName)
+	}
+
+	if internet == nil {
+		t.Fatal("expected Internet item")
+	}
+	if internet.Type != "fixed_bill" {
+		t.Errorf("Internet type: expected fixed_bill, got %s", internet.Type)
+	}
+	if internet.TotalCents != 5000 {
+		t.Errorf("Internet total: expected 5000, got %d", internet.TotalCents)
+	}
+	if internet.UserShareCents != 3125 {
+		t.Errorf("Internet share: expected 3125, got %d", internet.UserShareCents)
+	}
+
+	// Alice's share: 62.5% of (10000 + 5000) = 9375
+	if detail.TotalSharedCents != 9375 {
+		t.Errorf("total shared: expected 9375, got %d", detail.TotalSharedCents)
+	}
+	// Alice paid only Mercado = 10000
 	if detail.TotalPaidCents != 10000 {
 		t.Errorf("total paid: expected 10000, got %d", detail.TotalPaidCents)
 	}
@@ -1316,31 +1340,53 @@ func TestSummaryService_GetUserDetail_PersonalItems(t *testing.T) {
 		t.Fatalf("GetUserDetail failed: %v", err)
 	}
 
-	// Bob only paid the personal expense → 1 item (Mercado was paid by Alice)
-	if len(detail.Items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(detail.Items))
+	// Bob sees: Mercado (shared, paid by Alice) + Remédio Bob (personal, paid by him) → 2 items
+	if len(detail.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(detail.Items))
 	}
 
-	item := detail.Items[0]
-	if item.Description != "Remédio Bob" {
-		t.Errorf("expected Remédio Bob, got %s", item.Description)
+	// Find Remédio and Mercado
+	var remedio, mercado *domain.SummaryDetailItem
+	for i := range detail.Items {
+		if detail.Items[i].Description == "Remédio Bob" {
+			remedio = &detail.Items[i]
+		} else if detail.Items[i].Description == "Mercado" {
+			mercado = &detail.Items[i]
+		}
 	}
-	if item.IsShared {
+
+	if remedio == nil {
+		t.Fatal("expected Remédio Bob item")
+	}
+	if remedio.IsShared {
 		t.Error("Remédio should be personal")
 	}
-	if item.UserShareCents != 3500 {
-		t.Errorf("share: expected 3500, got %d", item.UserShareCents)
+	if remedio.UserShareCents != 3500 {
+		t.Errorf("Remédio share: expected 3500, got %d", remedio.UserShareCents)
 	}
-	if item.Proportion != 1.0 {
-		t.Errorf("proportion: expected 1.0, got %f", item.Proportion)
+	if remedio.Proportion != 1.0 {
+		t.Errorf("Remédio proportion: expected 1.0, got %f", remedio.Proportion)
 	}
 
-	if detail.TotalSharedCents != 0 {
-		t.Errorf("total shared: expected 0, got %d", detail.TotalSharedCents)
+	if mercado == nil {
+		t.Fatal("expected Mercado item")
+	}
+	if !mercado.IsShared {
+		t.Error("Mercado should be shared")
+	}
+	// Bob's share: 37.5% of 10000 = 3750
+	if mercado.UserShareCents != 3750 {
+		t.Errorf("Mercado share: expected 3750, got %d", mercado.UserShareCents)
+	}
+
+	// Bob's total shared: 37.5% of 10000 = 3750
+	if detail.TotalSharedCents != 3750 {
+		t.Errorf("total shared: expected 3750, got %d", detail.TotalSharedCents)
 	}
 	if detail.TotalPersonalCents != 3500 {
 		t.Errorf("total personal: expected 3500, got %d", detail.TotalPersonalCents)
 	}
+	// Bob paid only Remédio = 3500
 	if detail.TotalPaidCents != 3500 {
 		t.Errorf("total paid: expected 3500, got %d", detail.TotalPaidCents)
 	}
