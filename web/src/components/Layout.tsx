@@ -10,10 +10,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navItems = [
-    { path: '/', label: 'Painel' },
+    { path: '/', label: 'Resumo' },
     { path: '/despesas', label: 'Despesas' },
     { path: '/contas-fixas', label: 'Contas Fixas' },
-    { path: '/resumo', label: 'Resumo' },
     { path: '/categorias', label: 'Categorias' },
     { path: '/membros', label: 'Moradores' },
     { path: '/residencias', label: 'Residências' },

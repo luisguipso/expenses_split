@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useHousehold } from '../lib/household';
 import { summaryApi, SummaryResponse, FixedBillSnapshot } from '../lib/summary-api';
 import Layout from '../components/Layout';
@@ -20,7 +21,8 @@ const monthNames = [
 ];
 
 export default function Summary() {
-  const { activeHousehold } = useHousehold();
+  const { activeHousehold, isLoading } = useHousehold();
+  const navigate = useNavigate();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -57,12 +59,31 @@ export default function Summary() {
     fetchSummary();
   }, [activeHousehold?.id, month, year]);
 
+  if (isLoading) {
+    return (
+      <Layout>
+        <Spinner />
+      </Layout>
+    );
+  }
+
   if (!activeHousehold) {
     return (
       <Layout>
-        <p className="text-center text-gray-500">
-          Selecione ou crie uma residência primeiro.
-        </p>
+        <div className="rounded-lg bg-white p-8 text-center shadow">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Bem-vindo ao Contas!
+          </h2>
+          <p className="mt-2 text-gray-500">
+            Crie ou entre em uma residência para começar.
+          </p>
+          <button
+            onClick={() => navigate('/residencias')}
+            className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          >
+            Gerenciar Residências
+          </button>
+        </div>
       </Layout>
     );
   }
@@ -101,21 +122,45 @@ export default function Summary() {
         <Spinner text="Calculando..." />
       ) : summary ? (
         <>
-          {/* Totals */}
-          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded-lg bg-white p-5 shadow">
-              <span className="text-sm text-gray-500">Total Compartilhado</span>
-              <p className="mt-1 text-2xl font-bold text-green-600">
-                {formatCurrency(summary.total_shared_cents)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-white p-5 shadow">
-              <span className="text-sm text-gray-500">Total Geral</span>
-              <p className="mt-1 text-2xl font-bold text-gray-900">
-                {formatCurrency(summary.total_all_cents)}
-              </p>
-            </div>
-          </div>
+          {/* Summary cards */}
+          {(() => {
+            const totalFixedBills = (summary.fixed_bills ?? []).reduce((sum, b) => sum + b.amount_cents, 0);
+            const fixedBillCount = (summary.fixed_bills ?? []).length;
+            const totalExpenses = summary.total_all_cents - totalFixedBills;
+            const totalPersonal = summary.total_all_cents - summary.total_shared_cents;
+            return (
+              <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-white p-5 shadow">
+                  <span className="text-sm text-gray-500">Total do Mês</span>
+                  <p className="mt-1 text-2xl font-bold text-green-600">
+                    {formatCurrency(summary.total_all_cents)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white p-5 shadow">
+                  <span className="text-sm text-gray-500">
+                    Contas Fixas ({fixedBillCount})
+                  </span>
+                  <p className="mt-1 text-2xl font-bold text-blue-600">
+                    {formatCurrency(totalFixedBills)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white p-5 shadow">
+                  <span className="text-sm text-gray-500">Despesas</span>
+                  <p className="mt-1 text-2xl font-bold text-orange-600">
+                    {formatCurrency(totalExpenses)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-white p-5 shadow">
+                  <span className="text-sm text-gray-500">Compartilhado / Pessoal</span>
+                  <p className="mt-1 text-lg font-semibold text-gray-800">
+                    {formatCurrency(summary.total_shared_cents)}{' '}
+                    <span className="text-sm font-normal text-gray-400">/</span>{' '}
+                    {formatCurrency(totalPersonal)}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Fixed Bills */}
           {summary.fixed_bills && summary.fixed_bills.length > 0 && (

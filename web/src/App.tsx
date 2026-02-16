@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { HouseholdProvider } from './lib/household';
 import ErrorBoundary from './components/ErrorBoundary';
 import Spinner from './components/Spinner';
-import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Households from './pages/Households';
@@ -48,7 +47,7 @@ function App() {
               path="/"
               element={
                 <PrivateRoute>
-                  <Dashboard />
+                  <Summary />
                 </PrivateRoute>
               }
             />
@@ -94,11 +93,7 @@ function App() {
             />
             <Route
               path="/resumo"
-              element={
-                <PrivateRoute>
-                  <Summary />
-                </PrivateRoute>
-              }
+              element={<Navigate to="/" replace />}
             />
             <Route
               path="/login"

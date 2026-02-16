@@ -58,19 +58,6 @@ export interface UpdateFixedBillSnapshotInput {
   assigned_to: string;
 }
 
-export interface DashboardResponse {
-  household_name: string;
-  year: number;
-  month: number;
-  total_expenses: number;
-  total_fixed_bills: number;
-  total_shared: number;
-  total_personal: number;
-  expense_count: number;
-  fixed_bill_count: number;
-  member_breakdown: SummaryItem[];
-}
-
 export interface SummaryDetailItem {
   description: string;
   type: 'fixed_bill' | 'expense';
@@ -94,11 +81,6 @@ export interface SummaryDetailResponse {
 }
 
 export const summaryApi = {
-  getDashboard: (householdId: string) =>
-    api
-      .get<DashboardResponse>(`/households/${householdId}/dashboard`)
-      .then((r) => r.data),
-
   getSummary: (householdId: string, year: number, month: number) =>
     api
       .get<SummaryResponse>(
