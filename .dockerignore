@@ -1,9 +1,6 @@
-.env
-*.exe
-/api
-bin/
-tmp/
-vendor/
 web/node_modules/
 web/dist/
+.git/
+*.md
 coverage.out
+docker-compose.yml
