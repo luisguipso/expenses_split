@@ -7,12 +7,21 @@ interface User {
   email: string;
 }
 
+export class EmailNotVerifiedError extends Error {
+  constructor() {
+    super('email_not_verified');
+    this.name = 'EmailNotVerifiedError';
+  }
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<string>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
+  resendCode: (email: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -49,7 +58,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const login = async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password });
+    try {
+      const res = await api.post('/auth/login', { email, password });
+      const { tokens, user: userData } = res.data;
+      localStorage.setItem('token', tokens.access_token);
+      localStorage.setItem('refresh_token', tokens.refresh_token);
+      setToken(tokens.access_token);
+      setUser(userData);
+    } catch (error: unknown) {
+      if (
+        typeof error === 'object' && error !== null && 'response' in error &&
+        (error as { response?: { status?: number; data?: { error?: string } } }).response?.status === 403 &&
+        (error as { response?: { status?: number; data?: { error?: string } } }).response?.data?.error === 'email_not_verified'
+      ) {
+        throw new EmailNotVerifiedError();
+      }
+      throw error;
+    }
+  };
+
+  const register = async (
+    name: string,
+    email: string,
+    password: string
+  ): Promise<string> => {
+    await api.post('/auth/register', { name, email, password });
+    return email;
+  };
+
+  const verifyEmail = async (email: string, code: string) => {
+    const res = await api.post('/auth/verify-email', { email, code });
     const { tokens, user: userData } = res.data;
     localStorage.setItem('token', tokens.access_token);
     localStorage.setItem('refresh_token', tokens.refresh_token);
@@ -57,17 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(userData);
   };
 
-  const register = async (
-    name: string,
-    email: string,
-    password: string
-  ) => {
-    const res = await api.post('/auth/register', { name, email, password });
-    const { tokens, user: userData } = res.data;
-    localStorage.setItem('token', tokens.access_token);
-    localStorage.setItem('refresh_token', tokens.refresh_token);
-    setToken(tokens.access_token);
-    setUser(userData);
+  const resendCode = async (email: string) => {
+    await api.post('/auth/resend-code', { email });
   };
 
   const logout = () => {
@@ -79,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isLoading, login, register, logout }}
+      value={{ user, token, isLoading, login, register, verifyEmail, resendCode, logout }}
     >
       {children}
     </AuthContext.Provider>

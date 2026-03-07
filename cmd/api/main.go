@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -18,19 +18,23 @@ import (
 )
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+		slog.Info("No .env file found, using environment variables")
 	}
 
 	cfg := config.Load()
 
 	if err := migrate.Run(cfg.DatabaseURL); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		slog.Error("Failed to run migrations", "error", err)
+		os.Exit(1)
 	}
 
 	db, err := config.NewDB(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -42,11 +46,13 @@ func main() {
 	expenseRepo := repository.NewExpenseRepository(db)
 	summaryRepo := repository.NewSummaryRepository(db)
 	snapshotRepo := repository.NewFixedBillSnapshotRepository(db)
+	verificationRepo := repository.NewEmailVerificationRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	// Services
 	tokenService := service.NewJWTTokenService(cfg.JWTSecret)
-	authService := service.NewAuthService(userRepo, tokenService)
+	emailService := service.NewEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom)
+	authService := service.NewAuthService(userRepo, tokenService, verificationRepo, emailService, cfg.VerificationCodeTTL)
 	householdService := service.NewHouseholdService(householdRepo)
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
@@ -101,9 +107,9 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on port %s", port)
+	slog.Info("Server starting", "port", port)
 	if err := e.Start(":" + port); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
 }
@@ -122,7 +128,7 @@ func customErrorHandler(err error, c echo.Context) {
 	}
 
 	if code >= 500 {
-		log.Printf("ERROR: %v", err)
+		slog.Error("HTTP error", "status", code, "error", err)
 	}
 
 	_ = c.JSON(code, map[string]string{"error": message})

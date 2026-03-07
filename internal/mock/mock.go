@@ -12,6 +12,7 @@ type UserRepository struct {
 	CreateFn      func(ctx context.Context, user *domain.User) error
 	FindByEmailFn func(ctx context.Context, email string) (*domain.User, error)
 	FindByIDFn    func(ctx context.Context, id string) (*domain.User, error)
+	VerifyEmailFn func(ctx context.Context, userID string) error
 }
 
 func (m *UserRepository) Create(ctx context.Context, user *domain.User) error {
@@ -26,15 +27,21 @@ func (m *UserRepository) FindByID(ctx context.Context, id string) (*domain.User,
 	return m.FindByIDFn(ctx, id)
 }
 
+func (m *UserRepository) VerifyEmail(ctx context.Context, userID string) error {
+	return m.VerifyEmailFn(ctx, userID)
+}
+
 // AuthService
 
 type AuthService struct {
-	RegisterFn     func(ctx context.Context, input domain.RegisterInput) (*domain.User, *domain.TokenPair, error)
+	RegisterFn     func(ctx context.Context, input domain.RegisterInput) (*domain.User, error)
 	LoginFn        func(ctx context.Context, input domain.LoginInput) (*domain.User, *domain.TokenPair, error)
 	RefreshTokenFn func(refreshToken string) (*domain.TokenPair, error)
+	VerifyEmailFn  func(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error)
+	ResendCodeFn   func(ctx context.Context, input domain.ResendCodeInput) error
 }
 
-func (m *AuthService) Register(ctx context.Context, input domain.RegisterInput) (*domain.User, *domain.TokenPair, error) {
+func (m *AuthService) Register(ctx context.Context, input domain.RegisterInput) (*domain.User, error) {
 	return m.RegisterFn(ctx, input)
 }
 
@@ -44,6 +51,14 @@ func (m *AuthService) Login(ctx context.Context, input domain.LoginInput) (*doma
 
 func (m *AuthService) RefreshToken(refreshToken string) (*domain.TokenPair, error) {
 	return m.RefreshTokenFn(refreshToken)
+}
+
+func (m *AuthService) VerifyEmail(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error) {
+	return m.VerifyEmailFn(ctx, input)
+}
+
+func (m *AuthService) ResendCode(ctx context.Context, input domain.ResendCodeInput) error {
+	return m.ResendCodeFn(ctx, input)
 }
 
 // TokenService
@@ -373,4 +388,34 @@ func (m *SummaryService) GetDashboard(ctx context.Context, householdID, userID s
 }
 func (m *SummaryService) GetUserDetail(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*domain.SummaryDetailResponse, error) {
 	return m.GetUserDetailFn(ctx, householdID, year, month, targetUserID, requestingUserID)
+}
+
+// EmailVerificationRepository
+
+type EmailVerificationRepository struct {
+	CreateFn          func(ctx context.Context, verification *domain.EmailVerification) error
+	FindLatestByEmailFn func(ctx context.Context, email string) (*domain.EmailVerification, error)
+	MarkUsedFn        func(ctx context.Context, id string) error
+}
+
+func (m *EmailVerificationRepository) Create(ctx context.Context, v *domain.EmailVerification) error {
+	return m.CreateFn(ctx, v)
+}
+
+func (m *EmailVerificationRepository) FindLatestByEmail(ctx context.Context, email string) (*domain.EmailVerification, error) {
+	return m.FindLatestByEmailFn(ctx, email)
+}
+
+func (m *EmailVerificationRepository) MarkUsed(ctx context.Context, id string) error {
+	return m.MarkUsedFn(ctx, id)
+}
+
+// EmailService
+
+type EmailServiceMock struct {
+	SendVerificationCodeFn func(to, code string) error
+}
+
+func (m *EmailServiceMock) SendVerificationCode(to, code string) error {
+	return m.SendVerificationCodeFn(to, code)
 }

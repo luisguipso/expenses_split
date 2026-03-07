@@ -5,6 +5,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Spinner from './components/Spinner';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
 import Households from './pages/Households';
 import Members from './pages/Members';
 import Categories from './pages/Categories';
@@ -94,6 +95,14 @@ function App() {
             <Route
               path="/resumo"
               element={<Navigate to="/" replace />}
+            />
+            <Route
+              path="/verificar-email"
+              element={
+                <PublicRoute>
+                  <VerifyEmail />
+                </PublicRoute>
+              }
             />
             <Route
               path="/login"

@@ -58,10 +58,8 @@ t.Errorf("expected status %d, got %d", tt.wantStatus, he.Code)
 func TestAuthHandler_Register_Success(t *testing.T) {
 e := echo.New()
 authSvc := &mock.AuthService{
-RegisterFn: func(ctx context.Context, input domain.RegisterInput) (*domain.User, *domain.TokenPair, error) {
-return &domain.User{ID: "new-id", Name: input.Name, Email: input.Email},
-&domain.TokenPair{AccessToken: "access", RefreshToken: "refresh", ExpiresAt: 123},
-nil
+RegisterFn: func(ctx context.Context, input domain.RegisterInput) (*domain.User, error) {
+return &domain.User{ID: "new-id", Name: input.Name, Email: input.Email}, nil
 },
 }
 h := NewAuthHandler(authSvc)
@@ -79,23 +77,23 @@ if rec.Code != http.StatusCreated {
 t.Errorf("expected 201, got %d", rec.Code)
 }
 
-var resp domain.AuthResponse
+var resp domain.RegisterResponse
 if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 t.Fatalf("failed to parse response: %v", err)
 }
 if resp.User.Email != "test@example.com" {
 t.Errorf("expected email test@example.com, got %s", resp.User.Email)
 }
-if resp.Tokens.AccessToken != "access" {
-t.Errorf("expected access token 'access', got %s", resp.Tokens.AccessToken)
+if resp.Message == "" {
+t.Error("expected non-empty message")
 }
 }
 
 func TestAuthHandler_Register_EmailConflict(t *testing.T) {
 e := echo.New()
 authSvc := &mock.AuthService{
-RegisterFn: func(ctx context.Context, input domain.RegisterInput) (*domain.User, *domain.TokenPair, error) {
-return nil, nil, domain.ErrEmailExists
+RegisterFn: func(ctx context.Context, input domain.RegisterInput) (*domain.User, error) {
+return nil, domain.ErrEmailExists
 },
 }
 h := NewAuthHandler(authSvc)
@@ -119,8 +117,8 @@ t.Errorf("expected 409, got %d", he.Code)
 func TestAuthHandler_Register_InternalError(t *testing.T) {
 e := echo.New()
 authSvc := &mock.AuthService{
-RegisterFn: func(ctx context.Context, input domain.RegisterInput) (*domain.User, *domain.TokenPair, error) {
-return nil, nil, errors.New("unexpected")
+RegisterFn: func(ctx context.Context, input domain.RegisterInput) (*domain.User, error) {
+return nil, errors.New("unexpected")
 },
 }
 h := NewAuthHandler(authSvc)
@@ -379,5 +377,224 @@ t.Errorf("expected user_id test-user-id, got %v", result.UserID)
 }
 if result.Email != "test@example.com" {
 t.Errorf("expected email test@example.com, got %v", result.Email)
+}
+}
+
+// --- Email Verification handler tests ---
+
+func TestAuthHandler_Login_EmailNotVerified(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+LoginFn: func(ctx context.Context, input domain.LoginInput) (*domain.User, *domain.TokenPair, error) {
+return nil, nil, domain.ErrEmailNotVerified
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/login",
+strings.NewReader(`{"email":"test@example.com","password":"password123"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.Login(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusForbidden {
+t.Errorf("expected 403, got %d", he.Code)
+}
+}
+
+func TestAuthHandler_VerifyEmail_Success(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+VerifyEmailFn: func(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error) {
+return &domain.User{ID: "user-1", Name: "Test", Email: input.Email, EmailVerified: true},
+&domain.TokenPair{AccessToken: "access", RefreshToken: "refresh", ExpiresAt: 123},
+nil
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/verify-email",
+strings.NewReader(`{"email":"test@example.com","code":"123456"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+if err := h.VerifyEmail(c); err != nil {
+t.Fatalf("expected no error, got %v", err)
+}
+if rec.Code != http.StatusOK {
+t.Errorf("expected 200, got %d", rec.Code)
+}
+
+var resp domain.AuthResponse
+if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+t.Fatalf("failed to parse response: %v", err)
+}
+if resp.User.Email != "test@example.com" {
+t.Errorf("expected email test@example.com, got %s", resp.User.Email)
+}
+if resp.Tokens.AccessToken != "access" {
+t.Errorf("expected access token 'access', got %s", resp.Tokens.AccessToken)
+}
+}
+
+func TestAuthHandler_VerifyEmail_InvalidCode(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+VerifyEmailFn: func(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error) {
+return nil, nil, domain.ErrInvalidVerificationCode
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/verify-email",
+strings.NewReader(`{"email":"test@example.com","code":"000000"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.VerifyEmail(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+}
+
+func TestAuthHandler_VerifyEmail_ExpiredCode(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+VerifyEmailFn: func(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error) {
+return nil, nil, domain.ErrVerificationExpired
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/verify-email",
+strings.NewReader(`{"email":"test@example.com","code":"123456"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.VerifyEmail(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+}
+
+func TestAuthHandler_VerifyEmail_MissingFields(t *testing.T) {
+e := echo.New()
+h := NewAuthHandler(nil)
+
+tests := []struct {
+name string
+body string
+}{
+{"missing email", `{"code":"123456"}`},
+{"missing code", `{"email":"test@example.com"}`},
+{"both empty", `{}`},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+req := httptest.NewRequest(http.MethodPost, "/auth/verify-email", strings.NewReader(tt.body))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.VerifyEmail(c)
+if err == nil {
+t.Fatal("expected error")
+}
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+})
+}
+}
+
+func TestAuthHandler_ResendCode_Success(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ResendCodeFn: func(ctx context.Context, input domain.ResendCodeInput) error {
+return nil
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/resend-code",
+strings.NewReader(`{"email":"test@example.com"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+if err := h.ResendCode(c); err != nil {
+t.Fatalf("expected no error, got %v", err)
+}
+if rec.Code != http.StatusOK {
+t.Errorf("expected 200, got %d", rec.Code)
+}
+}
+
+func TestAuthHandler_ResendCode_MissingEmail(t *testing.T) {
+e := echo.New()
+h := NewAuthHandler(nil)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/resend-code",
+strings.NewReader(`{}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ResendCode(c)
+if err == nil {
+t.Fatal("expected error")
+}
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+}
+
+func TestAuthHandler_ResendCode_UserNotFound(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ResendCodeFn: func(ctx context.Context, input domain.ResendCodeInput) error {
+return domain.ErrUserNotFound
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/resend-code",
+strings.NewReader(`{"email":"unknown@example.com"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ResendCode(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusNotFound {
+t.Errorf("expected 404, got %d", he.Code)
 }
 }

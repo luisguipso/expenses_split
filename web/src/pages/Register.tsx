@@ -24,8 +24,8 @@ export default function Register() {
 
     setLoading(true);
     try {
-      await register(name, email, password);
-      navigate('/');
+      const registeredEmail = await register(name, email, password);
+      navigate('/verificar-email', { state: { email: registeredEmail } });
     } catch {
       setError('Erro ao criar conta. O email pode já estar em uso.');
     } finally {

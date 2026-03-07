@@ -21,7 +21,9 @@ api.interceptors.response.use(
     // Only redirect to login for 401 errors on authenticated endpoints
     // Don't redirect if the failed request was to /auth/login or /auth/register
     const isAuthEndpoint = error.config?.url?.includes('/auth/login') ||
-                          error.config?.url?.includes('/auth/register');
+                          error.config?.url?.includes('/auth/register') ||
+                          error.config?.url?.includes('/auth/verify-email') ||
+                          error.config?.url?.includes('/auth/resend-code');
 
     if (error.response?.status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('token');
