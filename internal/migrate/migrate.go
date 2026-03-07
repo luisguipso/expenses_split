@@ -4,7 +4,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -28,12 +28,12 @@ func Run(databaseURL string) error {
 
 	if err := m.Up(); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
-			log.Println("Migrations: already up to date")
+			slog.Info("Migrations: already up to date")
 			return nil
 		}
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	log.Println("Migrations: applied successfully")
+	slog.Info("Migrations: applied successfully")
 	return nil
 }

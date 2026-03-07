@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"time"
 
@@ -56,6 +57,8 @@ func (s *authService) Register(ctx context.Context, input domain.RegisterInput) 
 		return nil, err
 	}
 
+	slog.Info("user registered", "user_id", user.ID, "email", user.Email)
+
 	code := generateCode()
 	verification := &domain.EmailVerification{
 		UserID:    user.ID,
@@ -69,8 +72,11 @@ func (s *authService) Register(ctx context.Context, input domain.RegisterInput) 
 	}
 
 	if err := s.emailSvc.SendVerificationCode(user.Email, code); err != nil {
+		slog.Error("failed to send verification email", "error", err, "email", user.Email)
 		return nil, fmt.Errorf("send verification email: %w", err)
 	}
+
+	slog.Info("verification code sent", "email", user.Email)
 
 	return user, nil
 }
@@ -89,6 +95,7 @@ func (s *authService) Login(ctx context.Context, input domain.LoginInput) (*doma
 	}
 
 	if !user.EmailVerified {
+		slog.Warn("login attempt with unverified email", "email", input.Email)
 		return nil, nil, domain.ErrEmailNotVerified
 	}
 
@@ -134,6 +141,8 @@ func (s *authService) VerifyEmail(ctx context.Context, input domain.VerifyEmailI
 		return nil, nil, err
 	}
 
+	slog.Info("email verified", "email", input.Email, "user_id", verification.UserID)
+
 	user, err := s.userRepo.FindByID(ctx, verification.UserID)
 	if err != nil {
 		return nil, nil, err
@@ -173,8 +182,11 @@ func (s *authService) ResendCode(ctx context.Context, input domain.ResendCodeInp
 	}
 
 	if err := s.emailSvc.SendVerificationCode(user.Email, code); err != nil {
+		slog.Error("failed to resend verification email", "error", err, "email", user.Email)
 		return fmt.Errorf("send verification email: %w", err)
 	}
+
+	slog.Info("verification code resent", "email", user.Email)
 
 	return nil
 }

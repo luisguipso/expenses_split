@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -45,6 +46,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		if errors.Is(err, domain.ErrEmailExists) {
 			return echo.NewHTTPError(http.StatusConflict, "email already taken")
 		}
+		slog.Error("register failed", "error", err, "email", input.Email)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to register")
 	}
 
@@ -73,6 +75,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		if errors.Is(err, domain.ErrEmailNotVerified) {
 			return echo.NewHTTPError(http.StatusForbidden, "email_not_verified")
 		}
+		slog.Error("login failed", "error", err, "email", input.Email)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to login")
 	}
 
@@ -133,6 +136,7 @@ func (h *AuthHandler) VerifyEmail(c echo.Context) error {
 		if errors.Is(err, domain.ErrVerificationExpired) {
 			return echo.NewHTTPError(http.StatusBadRequest, "verification code expired")
 		}
+		slog.Error("verify email failed", "error", err, "email", input.Email)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to verify email")
 	}
 
@@ -159,6 +163,7 @@ func (h *AuthHandler) ResendCode(c echo.Context) error {
 		if errors.Is(err, domain.ErrAlreadyVerified) {
 			return echo.NewHTTPError(http.StatusConflict, "email already verified")
 		}
+		slog.Error("resend code failed", "error", err, "email", input.Email)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to resend code")
 	}
 

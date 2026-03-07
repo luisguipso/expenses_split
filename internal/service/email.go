@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log/slog"
 	"net/smtp"
 
 	"github.com/lguilherme/contas/internal/domain"
@@ -49,7 +50,10 @@ func (s *smtpEmailService) SendVerificationCode(to, code string) error {
 		auth = smtp.PlainAuth("", s.username, s.password, s.host)
 	}
 
+	slog.Info("sending email", "to", to, "smtp_host", addr)
+
 	if err := smtp.SendMail(addr, auth, s.from, []string{to}, []byte(msg)); err != nil {
+		slog.Error("smtp send failed", "error", err, "to", to, "smtp_host", addr)
 		return fmt.Errorf("send verification email: %w", err)
 	}
 	return nil
