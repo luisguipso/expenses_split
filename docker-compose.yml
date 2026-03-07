@@ -16,6 +16,13 @@ services:
       timeout: 5s
       retries: 5
 
+  mailpit:
+    image: axllent/mailpit
+    container_name: contas-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
   api:
     build:
       context: .
@@ -28,9 +35,14 @@ services:
       JWT_SECRET: dev-secret-change-in-production
       FRONTEND_URL: http://localhost:8080
       PORT: "8080"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_FROM: noreply@contas.app
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
 volumes:
   pgdata:
