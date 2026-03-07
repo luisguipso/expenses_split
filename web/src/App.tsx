@@ -6,6 +6,7 @@ import Spinner from './components/Spinner';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
+import PasswordRecover from './pages/PasswordRecover';
 import Households from './pages/Households';
 import Members from './pages/Members';
 import Categories from './pages/Categories';
@@ -101,6 +102,14 @@ function App() {
               element={
                 <PublicRoute>
                   <VerifyEmail />
+                </PublicRoute>
+              }
+            />
+            <Route
+              path="/password-recover"
+              element={
+                <PublicRoute>
+                  <PasswordRecover />
                 </PublicRoute>
               }
             />

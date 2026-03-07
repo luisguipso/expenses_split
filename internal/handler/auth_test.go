@@ -598,3 +598,225 @@ if he.Code != http.StatusNotFound {
 t.Errorf("expected 404, got %d", he.Code)
 }
 }
+
+// --- ForgotPassword handler tests ---
+
+func TestAuthHandler_ForgotPassword_Success(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ForgotPasswordFn: func(ctx context.Context, input domain.ForgotPasswordInput) error {
+return nil
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/forgot-password",
+strings.NewReader(`{"email":"user@example.com"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+if err := h.ForgotPassword(c); err != nil {
+t.Fatalf("expected no error, got %v", err)
+}
+if rec.Code != http.StatusOK {
+t.Errorf("expected 200, got %d", rec.Code)
+}
+}
+
+func TestAuthHandler_ForgotPassword_Validation(t *testing.T) {
+e := echo.New()
+h := NewAuthHandler(nil)
+
+tests := []struct {
+name       string
+body       string
+wantStatus int
+}{
+{"empty body", `{}`, http.StatusBadRequest},
+{"missing email", `{"email":""}`, http.StatusBadRequest},
+{"invalid email format", `{"email":"notanemail"}`, http.StatusBadRequest},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+req := httptest.NewRequest(http.MethodPost, "/auth/forgot-password", strings.NewReader(tt.body))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ForgotPassword(c)
+if err == nil {
+t.Fatal("expected error")
+}
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != tt.wantStatus {
+t.Errorf("expected status %d, got %d", tt.wantStatus, he.Code)
+}
+})
+}
+}
+
+func TestAuthHandler_ForgotPassword_InternalError(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ForgotPasswordFn: func(ctx context.Context, input domain.ForgotPasswordInput) error {
+return errors.New("smtp failure")
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/forgot-password",
+strings.NewReader(`{"email":"user@example.com"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ForgotPassword(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusInternalServerError {
+t.Errorf("expected 500, got %d", he.Code)
+}
+}
+
+// --- ResetPassword handler tests ---
+
+func TestAuthHandler_ResetPassword_Success(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ResetPasswordFn: func(ctx context.Context, input domain.ResetPasswordInput) error {
+return nil
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/reset-password",
+strings.NewReader(`{"token":"abc123","new_password":"newpass123"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+if err := h.ResetPassword(c); err != nil {
+t.Fatalf("expected no error, got %v", err)
+}
+if rec.Code != http.StatusOK {
+t.Errorf("expected 200, got %d", rec.Code)
+}
+}
+
+func TestAuthHandler_ResetPassword_Validation(t *testing.T) {
+e := echo.New()
+h := NewAuthHandler(nil)
+
+tests := []struct {
+name       string
+body       string
+wantStatus int
+}{
+{"empty body", `{}`, http.StatusBadRequest},
+{"missing token", `{"new_password":"newpass123"}`, http.StatusBadRequest},
+{"short password", `{"token":"abc123","new_password":"12345"}`, http.StatusBadRequest},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", strings.NewReader(tt.body))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ResetPassword(c)
+if err == nil {
+t.Fatal("expected error")
+}
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != tt.wantStatus {
+t.Errorf("expected status %d, got %d", tt.wantStatus, he.Code)
+}
+})
+}
+}
+
+func TestAuthHandler_ResetPassword_InvalidToken(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ResetPasswordFn: func(ctx context.Context, input domain.ResetPasswordInput) error {
+return domain.ErrResetTokenInvalid
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/reset-password",
+strings.NewReader(`{"token":"invalid","new_password":"newpass123"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ResetPassword(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+}
+
+func TestAuthHandler_ResetPassword_ExpiredToken(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ResetPasswordFn: func(ctx context.Context, input domain.ResetPasswordInput) error {
+return domain.ErrResetTokenExpired
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/reset-password",
+strings.NewReader(`{"token":"expired","new_password":"newpass123"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ResetPassword(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+}
+
+func TestAuthHandler_ResetPassword_SamePassword(t *testing.T) {
+e := echo.New()
+authSvc := &mock.AuthService{
+ResetPasswordFn: func(ctx context.Context, input domain.ResetPasswordInput) error {
+return domain.ErrPasswordSameAsOld
+},
+}
+h := NewAuthHandler(authSvc)
+
+req := httptest.NewRequest(http.MethodPost, "/auth/reset-password",
+strings.NewReader(`{"token":"valid","new_password":"samepass"}`))
+req.Header.Set("Content-Type", "application/json")
+rec := httptest.NewRecorder()
+c := e.NewContext(req, rec)
+
+err := h.ResetPassword(c)
+he, ok := err.(*echo.HTTPError)
+if !ok {
+t.Fatalf("expected HTTPError, got %T: %v", err, err)
+}
+if he.Code != http.StatusBadRequest {
+t.Errorf("expected 400, got %d", he.Code)
+}
+}

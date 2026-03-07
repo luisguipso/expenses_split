@@ -65,7 +65,8 @@ const jwtSecret = "integration-test-secret"
 // noopEmailService is a no-op email service for integration tests.
 type noopEmailService struct{}
 
-func (n *noopEmailService) SendVerificationCode(to, code string) error { return nil }
+func (n *noopEmailService) SendVerificationCode(to, code string) error      { return nil }
+func (n *noopEmailService) SendPasswordResetLink(to, resetLink string) error { return nil }
 
 func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	userRepo := repository.NewUserRepository(db)
@@ -77,9 +78,10 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	snapshotRepo := repository.NewFixedBillSnapshotRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 	verificationRepo := repository.NewEmailVerificationRepository(db)
+	passwordResetRepo := repository.NewPasswordResetRepository(db)
 
 	tokenService := service.NewJWTTokenService(jwtSecret)
-	authService := service.NewAuthService(userRepo, tokenService, verificationRepo, &noopEmailService{}, 15*time.Minute)
+	authService := service.NewAuthService(userRepo, tokenService, verificationRepo, &noopEmailService{}, 15*time.Minute, passwordResetRepo, 30*time.Minute, "http://localhost:5173")
 	householdService := service.NewHouseholdService(householdRepo)
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)

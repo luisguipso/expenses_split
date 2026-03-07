@@ -62,6 +62,15 @@ type ResendCodeInput struct {
 	Email string `json:"email"`
 }
 
+type ForgotPasswordInput struct {
+	Email string `json:"email"`
+}
+
+type ResetPasswordInput struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"new_password"`
+}
+
 // Household DTOs
 
 type CreateHouseholdInput struct {

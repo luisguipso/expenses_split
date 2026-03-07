@@ -1,0 +1,1 @@
+../internal/migrate/sql/000006_password_resets.up.sql

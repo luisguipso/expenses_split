@@ -9,10 +9,11 @@ import (
 // UserRepository
 
 type UserRepository struct {
-	CreateFn      func(ctx context.Context, user *domain.User) error
-	FindByEmailFn func(ctx context.Context, email string) (*domain.User, error)
-	FindByIDFn    func(ctx context.Context, id string) (*domain.User, error)
-	VerifyEmailFn func(ctx context.Context, userID string) error
+	CreateFn         func(ctx context.Context, user *domain.User) error
+	FindByEmailFn    func(ctx context.Context, email string) (*domain.User, error)
+	FindByIDFn       func(ctx context.Context, id string) (*domain.User, error)
+	VerifyEmailFn    func(ctx context.Context, userID string) error
+	UpdatePasswordFn func(ctx context.Context, userID, passwordHash string) error
 }
 
 func (m *UserRepository) Create(ctx context.Context, user *domain.User) error {
@@ -31,14 +32,20 @@ func (m *UserRepository) VerifyEmail(ctx context.Context, userID string) error {
 	return m.VerifyEmailFn(ctx, userID)
 }
 
+func (m *UserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	return m.UpdatePasswordFn(ctx, userID, passwordHash)
+}
+
 // AuthService
 
 type AuthService struct {
-	RegisterFn     func(ctx context.Context, input domain.RegisterInput) (*domain.User, error)
-	LoginFn        func(ctx context.Context, input domain.LoginInput) (*domain.User, *domain.TokenPair, error)
-	RefreshTokenFn func(refreshToken string) (*domain.TokenPair, error)
-	VerifyEmailFn  func(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error)
-	ResendCodeFn   func(ctx context.Context, input domain.ResendCodeInput) error
+	RegisterFn       func(ctx context.Context, input domain.RegisterInput) (*domain.User, error)
+	LoginFn          func(ctx context.Context, input domain.LoginInput) (*domain.User, *domain.TokenPair, error)
+	RefreshTokenFn   func(refreshToken string) (*domain.TokenPair, error)
+	VerifyEmailFn    func(ctx context.Context, input domain.VerifyEmailInput) (*domain.User, *domain.TokenPair, error)
+	ResendCodeFn     func(ctx context.Context, input domain.ResendCodeInput) error
+	ForgotPasswordFn func(ctx context.Context, input domain.ForgotPasswordInput) error
+	ResetPasswordFn  func(ctx context.Context, input domain.ResetPasswordInput) error
 }
 
 func (m *AuthService) Register(ctx context.Context, input domain.RegisterInput) (*domain.User, error) {
@@ -59,6 +66,14 @@ func (m *AuthService) VerifyEmail(ctx context.Context, input domain.VerifyEmailI
 
 func (m *AuthService) ResendCode(ctx context.Context, input domain.ResendCodeInput) error {
 	return m.ResendCodeFn(ctx, input)
+}
+
+func (m *AuthService) ForgotPassword(ctx context.Context, input domain.ForgotPasswordInput) error {
+	return m.ForgotPasswordFn(ctx, input)
+}
+
+func (m *AuthService) ResetPassword(ctx context.Context, input domain.ResetPasswordInput) error {
+	return m.ResetPasswordFn(ctx, input)
 }
 
 // TokenService
@@ -413,9 +428,34 @@ func (m *EmailVerificationRepository) MarkUsed(ctx context.Context, id string) e
 // EmailService
 
 type EmailServiceMock struct {
-	SendVerificationCodeFn func(to, code string) error
+	SendVerificationCodeFn   func(to, code string) error
+	SendPasswordResetLinkFn  func(to, resetLink string) error
 }
 
 func (m *EmailServiceMock) SendVerificationCode(to, code string) error {
 	return m.SendVerificationCodeFn(to, code)
+}
+
+func (m *EmailServiceMock) SendPasswordResetLink(to, resetLink string) error {
+	return m.SendPasswordResetLinkFn(to, resetLink)
+}
+
+// PasswordResetRepository
+
+type PasswordResetRepository struct {
+	CreateFn      func(ctx context.Context, reset *domain.PasswordReset) error
+	FindByTokenFn func(ctx context.Context, token string) (*domain.PasswordReset, error)
+	MarkUsedFn    func(ctx context.Context, id string) error
+}
+
+func (m *PasswordResetRepository) Create(ctx context.Context, pr *domain.PasswordReset) error {
+	return m.CreateFn(ctx, pr)
+}
+
+func (m *PasswordResetRepository) FindByToken(ctx context.Context, token string) (*domain.PasswordReset, error) {
+	return m.FindByTokenFn(ctx, token)
+}
+
+func (m *PasswordResetRepository) MarkUsed(ctx context.Context, id string) error {
+	return m.MarkUsedFn(ctx, id)
 }

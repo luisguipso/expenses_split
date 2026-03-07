@@ -23,4 +23,7 @@ var (
 	ErrInvalidVerificationCode   = errors.New("invalid verification code")
 	ErrVerificationExpired       = errors.New("verification code expired")
 	ErrAlreadyVerified           = errors.New("email already verified")
+	ErrResetTokenInvalid         = errors.New("invalid password reset token")
+	ErrResetTokenExpired         = errors.New("password reset token expired")
+	ErrPasswordSameAsOld         = errors.New("new password must differ from current password")
 )

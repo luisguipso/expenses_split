@@ -7,6 +7,7 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	FindByID(ctx context.Context, id string) (*User, error)
 	VerifyEmail(ctx context.Context, userID string) error
+	UpdatePassword(ctx context.Context, userID, passwordHash string) error
 }
 
 type TokenService interface {
@@ -20,6 +21,8 @@ type AuthService interface {
 	RefreshToken(refreshToken string) (*TokenPair, error)
 	VerifyEmail(ctx context.Context, input VerifyEmailInput) (*User, *TokenPair, error)
 	ResendCode(ctx context.Context, input ResendCodeInput) error
+	ForgotPassword(ctx context.Context, input ForgotPasswordInput) error
+	ResetPassword(ctx context.Context, input ResetPasswordInput) error
 }
 
 type EmailVerificationRepository interface {
@@ -30,6 +33,13 @@ type EmailVerificationRepository interface {
 
 type EmailService interface {
 	SendVerificationCode(to, code string) error
+	SendPasswordResetLink(to, resetLink string) error
+}
+
+type PasswordResetRepository interface {
+	Create(ctx context.Context, reset *PasswordReset) error
+	FindByToken(ctx context.Context, token string) (*PasswordReset, error)
+	MarkUsed(ctx context.Context, id string) error
 }
 
 type HouseholdRepository interface {

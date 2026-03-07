@@ -47,12 +47,13 @@ func main() {
 	summaryRepo := repository.NewSummaryRepository(db)
 	snapshotRepo := repository.NewFixedBillSnapshotRepository(db)
 	verificationRepo := repository.NewEmailVerificationRepository(db)
+	passwordResetRepo := repository.NewPasswordResetRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
 
 	// Services
 	tokenService := service.NewJWTTokenService(cfg.JWTSecret)
 	emailService := service.NewEmailService(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom)
-	authService := service.NewAuthService(userRepo, tokenService, verificationRepo, emailService, cfg.VerificationCodeTTL)
+	authService := service.NewAuthService(userRepo, tokenService, verificationRepo, emailService, cfg.VerificationCodeTTL, passwordResetRepo, cfg.PasswordResetTTL, cfg.FrontendURL)
 	householdService := service.NewHouseholdService(householdRepo)
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
