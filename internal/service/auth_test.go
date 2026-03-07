@@ -105,7 +105,7 @@ t.Errorf("expected ErrInvalidToken, got %v", err)
 
 func TestAuthService_RefreshToken_Valid(t *testing.T) {
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(nil, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(nil, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 tokens, err := tokenSvc.Generate("user-456", "refresh@example.com")
 if err != nil {
@@ -131,7 +131,7 @@ t.Errorf("expected email refresh@example.com, got %s", newClaims.Email)
 
 func TestAuthService_RefreshToken_Invalid(t *testing.T) {
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(nil, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(nil, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, err := authSvc.RefreshToken("invalid-refresh-token")
 if err != domain.ErrInvalidToken {
@@ -159,7 +159,7 @@ return nil
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 user, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test User",
@@ -187,7 +187,7 @@ return domain.ErrEmailExists
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test",
@@ -207,7 +207,7 @@ return repoErr
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test",
@@ -238,7 +238,7 @@ EmailVerified: true,
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 user, tokens, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "test@example.com",
@@ -262,7 +262,7 @@ return nil, domain.ErrUserNotFound
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "noone@example.com",
@@ -285,7 +285,7 @@ PasswordHash: string(hash),
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "test@example.com",
@@ -303,7 +303,7 @@ return nil, errors.New("database timeout")
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "test@example.com",
@@ -342,7 +342,7 @@ return nil
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 user, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test User",
@@ -379,7 +379,7 @@ EmailVerified: false,
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "unverified@example.com",
@@ -423,7 +423,7 @@ EmailVerified: true,
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, verifyRepo, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 user, tokens, err := authSvc.VerifyEmail(context.Background(), domain.VerifyEmailInput{
 Email: "verify@example.com",
@@ -460,7 +460,7 @@ Used:      false,
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(nil, tokenSvc, verifyRepo, nil, 15*time.Minute)
+authSvc := NewAuthService(nil, tokenSvc, verifyRepo, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, _, err := authSvc.VerifyEmail(context.Background(), domain.VerifyEmailInput{
 Email: "verify@example.com",
@@ -485,7 +485,7 @@ Used:      false,
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(nil, tokenSvc, verifyRepo, nil, 15*time.Minute)
+authSvc := NewAuthService(nil, tokenSvc, verifyRepo, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 _, _, err := authSvc.VerifyEmail(context.Background(), domain.VerifyEmailInput{
 Email: "verify@example.com",
@@ -521,7 +521,7 @@ return nil
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 err := authSvc.ResendCode(context.Background(), domain.ResendCodeInput{
 Email: "resend@example.com",
@@ -544,7 +544,7 @@ return nil, domain.ErrUserNotFound
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 err := authSvc.ResendCode(context.Background(), domain.ResendCodeInput{
 Email: "unknown@example.com",
@@ -565,7 +565,7 @@ EmailVerified: true,
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute, nil, 30*time.Minute, "http://localhost:5173")
 
 err := authSvc.ResendCode(context.Background(), domain.ResendCodeInput{
 Email: "verified@example.com",

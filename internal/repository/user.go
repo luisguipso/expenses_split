@@ -77,3 +77,14 @@ func (r *userRepository) VerifyEmail(ctx context.Context, userID string) error {
 	}
 	return nil
 }
+
+func (r *userRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`,
+		passwordHash, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("update password: %w", err)
+	}
+	return nil
+}

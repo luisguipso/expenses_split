@@ -99,7 +99,12 @@ export default function Login() {
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="mt-3 text-center text-sm">
+          <Link to="/password-recover" className="text-blue-600 hover:underline">
+            Esqueceu a senha?
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-sm text-gray-600">
           Não tem conta?{' '}
           <Link to="/register" className="text-blue-600 hover:underline">
             Cadastre-se

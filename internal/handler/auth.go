@@ -170,6 +170,59 @@ func (h *AuthHandler) ResendCode(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "verification code sent"})
 }
 
+func (h *AuthHandler) ForgotPassword(c echo.Context) error {
+	var input domain.ForgotPasswordInput
+	if err := c.Bind(&input); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	if input.Email == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "email is required")
+	}
+
+	if !isValidEmail(input.Email) {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid email format")
+	}
+
+	if err := h.auth.ForgotPassword(c.Request().Context(), input); err != nil {
+		slog.Error("forgot password failed", "error", err, "email", input.Email)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to process request")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "if the email exists, a reset link has been sent"})
+}
+
+func (h *AuthHandler) ResetPassword(c echo.Context) error {
+	var input domain.ResetPasswordInput
+	if err := c.Bind(&input); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	if input.Token == "" {
+		return echo.NewHTTPError(http.StatusBadRequest, "token is required")
+	}
+
+	if len(input.NewPassword) < 6 {
+		return echo.NewHTTPError(http.StatusBadRequest, "password must be at least 6 characters")
+	}
+
+	if err := h.auth.ResetPassword(c.Request().Context(), input); err != nil {
+		if errors.Is(err, domain.ErrResetTokenInvalid) {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid or already used reset token")
+		}
+		if errors.Is(err, domain.ErrResetTokenExpired) {
+			return echo.NewHTTPError(http.StatusBadRequest, "reset token has expired")
+		}
+		if errors.Is(err, domain.ErrPasswordSameAsOld) {
+			return echo.NewHTTPError(http.StatusBadRequest, "new password must differ from current password")
+		}
+		slog.Error("reset password failed", "error", err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to reset password")
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "password reset successfully"})
+}
+
 func RegisterAuthRoutes(e *echo.Echo, h *AuthHandler, authMiddleware echo.MiddlewareFunc) {
 	auth := e.Group("/auth")
 	auth.POST("/register", h.Register)
@@ -177,6 +230,8 @@ func RegisterAuthRoutes(e *echo.Echo, h *AuthHandler, authMiddleware echo.Middle
 	auth.POST("/refresh", h.Refresh)
 	auth.POST("/verify-email", h.VerifyEmail)
 	auth.POST("/resend-code", h.ResendCode)
+	auth.POST("/forgot-password", h.ForgotPassword)
+	auth.POST("/reset-password", h.ResetPassword)
 	auth.GET("/me", h.Me, authMiddleware)
 }
 

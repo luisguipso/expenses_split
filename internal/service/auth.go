@@ -14,11 +14,14 @@ import (
 )
 
 type authService struct {
-	userRepo       domain.UserRepository
-	tokens         domain.TokenService
-	verifyRepo     domain.EmailVerificationRepository
-	emailSvc       domain.EmailService
-	codeExpiration time.Duration
+	userRepo        domain.UserRepository
+	tokens          domain.TokenService
+	verifyRepo      domain.EmailVerificationRepository
+	resetRepo       domain.PasswordResetRepository
+	emailSvc        domain.EmailService
+	codeExpiration  time.Duration
+	resetExpiration time.Duration
+	frontendURL     string
 }
 
 func NewAuthService(
@@ -27,13 +30,19 @@ func NewAuthService(
 	verifyRepo domain.EmailVerificationRepository,
 	emailSvc domain.EmailService,
 	codeExpiration time.Duration,
+	resetRepo domain.PasswordResetRepository,
+	resetExpiration time.Duration,
+	frontendURL string,
 ) domain.AuthService {
 	return &authService{
-		userRepo:       userRepo,
-		tokens:         tokens,
-		verifyRepo:     verifyRepo,
-		emailSvc:       emailSvc,
-		codeExpiration: codeExpiration,
+		userRepo:        userRepo,
+		tokens:          tokens,
+		verifyRepo:      verifyRepo,
+		resetRepo:       resetRepo,
+		emailSvc:        emailSvc,
+		codeExpiration:  codeExpiration,
+		resetExpiration: resetExpiration,
+		frontendURL:     frontendURL,
 	}
 }
 
@@ -194,4 +203,88 @@ func (s *authService) ResendCode(ctx context.Context, input domain.ResendCodeInp
 func generateCode() string {
 	n, _ := rand.Int(rand.Reader, big.NewInt(1000000))
 	return fmt.Sprintf("%06d", n.Int64())
+}
+
+func generateToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate reset token: %w", err)
+	}
+	return fmt.Sprintf("%x", b), nil
+}
+
+func (s *authService) ForgotPassword(ctx context.Context, input domain.ForgotPasswordInput) error {
+	user, err := s.userRepo.FindByEmail(ctx, input.Email)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			// Silent success to avoid leaking whether the email exists
+			slog.Info("forgot password for unknown email", "email", input.Email)
+			return nil
+		}
+		return err
+	}
+
+	token, err := generateToken()
+	if err != nil {
+		return err
+	}
+
+	reset := &domain.PasswordReset{
+		UserID:    user.ID,
+		Email:     user.Email,
+		Token:     token,
+		ExpiresAt: time.Now().Add(s.resetExpiration),
+	}
+
+	if err := s.resetRepo.Create(ctx, reset); err != nil {
+		return fmt.Errorf("create password reset: %w", err)
+	}
+
+	resetLink := fmt.Sprintf("%s/password-recover?token=%s", s.frontendURL, token)
+	if err := s.emailSvc.SendPasswordResetLink(user.Email, resetLink); err != nil {
+		slog.Error("failed to send password reset email", "error", err, "email", user.Email)
+		return fmt.Errorf("send password reset email: %w", err)
+	}
+
+	slog.Info("password reset email sent", "email", user.Email)
+	return nil
+}
+
+func (s *authService) ResetPassword(ctx context.Context, input domain.ResetPasswordInput) error {
+	reset, err := s.resetRepo.FindByToken(ctx, input.Token)
+	if err != nil {
+		if errors.Is(err, domain.ErrResetTokenInvalid) {
+			return domain.ErrResetTokenInvalid
+		}
+		return err
+	}
+
+	if time.Now().After(reset.ExpiresAt) {
+		return domain.ErrResetTokenExpired
+	}
+
+	user, err := s.userRepo.FindByID(ctx, reset.UserID)
+	if err != nil {
+		return err
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.NewPassword)); err == nil {
+		return domain.ErrPasswordSameAsOld
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash password: %w", err)
+	}
+
+	if err := s.userRepo.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
+		return err
+	}
+
+	if err := s.resetRepo.MarkUsed(ctx, reset.ID); err != nil {
+		return err
+	}
+
+	slog.Info("password reset successful", "user_id", user.ID, "email", user.Email)
+	return nil
 }

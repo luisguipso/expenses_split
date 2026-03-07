@@ -17,6 +17,7 @@ type Config struct {
 	SMTPPassword        string
 	SMTPFrom            string
 	VerificationCodeTTL time.Duration
+	PasswordResetTTL    time.Duration
 }
 
 func Load() *Config {
@@ -31,6 +32,7 @@ func Load() *Config {
 		SMTPPassword:        getEnv("SMTP_PASSWORD", ""),
 		SMTPFrom:            getEnv("SMTP_FROM", "noreply@contas.app"),
 		VerificationCodeTTL: getEnvDuration("VERIFICATION_CODE_TTL", 15*time.Minute),
+		PasswordResetTTL:    getEnvDuration("PASSWORD_RESET_TTL", 30*time.Minute),
 	}
 }
 
