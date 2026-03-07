@@ -63,17 +63,12 @@ func TestAuth_ProtectedRouteWithoutToken(t *testing.T) {
 func TestAuth_RefreshTokenFlow(t *testing.T) {
 	cleanDB(t)
 
-	// Register to get initial tokens
-	resp := doJSON(t, http.MethodPost, "/auth/register",
-		domain.RegisterInput{Name: "Alice", Email: "alice@test.com", Password: "secret123"},
-		"", http.StatusCreated)
-
-	var regResult domain.AuthResponse
-	decodeJSON(t, resp, &regResult)
+	// Register and verify to get initial tokens
+	user := registerUser(t, "Alice", "alice@test.com", "secret123")
 
 	// Use refresh token to get new access token
-	resp = doJSON(t, http.MethodPost, "/auth/refresh",
-		map[string]string{"refresh_token": regResult.Tokens.RefreshToken},
+	resp := doJSON(t, http.MethodPost, "/auth/refresh",
+		map[string]string{"refresh_token": user.RefreshToken},
 		"", http.StatusOK)
 
 	var refreshResult domain.AuthResponse

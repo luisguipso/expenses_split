@@ -105,7 +105,7 @@ t.Errorf("expected ErrInvalidToken, got %v", err)
 
 func TestAuthService_RefreshToken_Valid(t *testing.T) {
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(nil, tokenSvc)
+authSvc := NewAuthService(nil, tokenSvc, nil, nil, 15*time.Minute)
 
 tokens, err := tokenSvc.Generate("user-456", "refresh@example.com")
 if err != nil {
@@ -131,7 +131,7 @@ t.Errorf("expected email refresh@example.com, got %s", newClaims.Email)
 
 func TestAuthService_RefreshToken_Invalid(t *testing.T) {
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(nil, tokenSvc)
+authSvc := NewAuthService(nil, tokenSvc, nil, nil, 15*time.Minute)
 
 _, err := authSvc.RefreshToken("invalid-refresh-token")
 if err != domain.ErrInvalidToken {
@@ -148,10 +148,20 @@ user.ID = "new-user-id"
 return nil
 },
 }
+verifyRepo := &mock.EmailVerificationRepository{
+CreateFn: func(ctx context.Context, v *domain.EmailVerification) error {
+return nil
+},
+}
+emailSvc := &mock.EmailServiceMock{
+SendVerificationCodeFn: func(to, code string) error {
+return nil
+},
+}
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute)
 
-user, tokens, err := authSvc.Register(context.Background(), domain.RegisterInput{
+user, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test User",
 Email:    "test@example.com",
 Password: "password123",
@@ -165,9 +175,6 @@ t.Errorf("expected user ID new-user-id, got %s", user.ID)
 if user.Email != "test@example.com" {
 t.Errorf("expected email test@example.com, got %s", user.Email)
 }
-if tokens.AccessToken == "" {
-t.Error("access token is empty")
-}
 if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte("password123")); err != nil {
 t.Error("password hash doesn't match")
 }
@@ -180,9 +187,9 @@ return domain.ErrEmailExists
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
 
-_, _, err := authSvc.Register(context.Background(), domain.RegisterInput{
+_, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test",
 Email:    "taken@example.com",
 Password: "password123",
@@ -200,9 +207,9 @@ return repoErr
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
 
-_, _, err := authSvc.Register(context.Background(), domain.RegisterInput{
+_, err := authSvc.Register(context.Background(), domain.RegisterInput{
 Name:     "Test",
 Email:    "test@example.com",
 Password: "password123",
@@ -222,15 +229,16 @@ hash, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.MinCost
 repo := &mock.UserRepository{
 FindByEmailFn: func(ctx context.Context, email string) (*domain.User, error) {
 return &domain.User{
-ID:           "user-789",
-Name:         "Test User",
-Email:        email,
-PasswordHash: string(hash),
+ID:            "user-789",
+Name:          "Test User",
+Email:         email,
+PasswordHash:  string(hash),
+EmailVerified: true,
 }, nil
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
 
 user, tokens, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "test@example.com",
@@ -254,7 +262,7 @@ return nil, domain.ErrUserNotFound
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "noone@example.com",
@@ -277,7 +285,7 @@ PasswordHash: string(hash),
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "test@example.com",
@@ -295,7 +303,7 @@ return nil, errors.New("database timeout")
 },
 }
 tokenSvc := NewJWTTokenService(testSecret)
-authSvc := NewAuthService(repo, tokenSvc)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
 
 _, _, err := authSvc.Login(context.Background(), domain.LoginInput{
 Email:    "test@example.com",
@@ -306,5 +314,263 @@ t.Fatal("expected error, got nil")
 }
 if errors.Is(err, domain.ErrInvalidCredentials) {
 t.Error("should not be ErrInvalidCredentials for repo error")
+}
+}
+
+// --- Email Verification tests ---
+
+func TestAuthService_Register_SendsVerificationCode(t *testing.T) {
+var emailSent bool
+var sentTo, sentCode string
+repo := &mock.UserRepository{
+CreateFn: func(ctx context.Context, user *domain.User) error {
+user.ID = "new-user-id"
+return nil
+},
+}
+verifyRepo := &mock.EmailVerificationRepository{
+CreateFn: func(ctx context.Context, v *domain.EmailVerification) error {
+return nil
+},
+}
+emailSvc := &mock.EmailServiceMock{
+SendVerificationCodeFn: func(to, code string) error {
+emailSent = true
+sentTo = to
+sentCode = code
+return nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute)
+
+user, err := authSvc.Register(context.Background(), domain.RegisterInput{
+Name:     "Test User",
+Email:    "verify@example.com",
+Password: "password123",
+})
+if err != nil {
+t.Fatalf("Register failed: %v", err)
+}
+if user == nil {
+t.Fatal("expected user, got nil")
+}
+if !emailSent {
+t.Error("expected SendVerificationCode to be called")
+}
+if sentTo != "verify@example.com" {
+t.Errorf("expected email sent to verify@example.com, got %s", sentTo)
+}
+if sentCode == "" {
+t.Error("expected non-empty verification code")
+}
+}
+
+func TestAuthService_Login_RejectsUnverified(t *testing.T) {
+hash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.MinCost)
+repo := &mock.UserRepository{
+FindByEmailFn: func(ctx context.Context, email string) (*domain.User, error) {
+return &domain.User{
+ID:            "user-unverified",
+Email:         email,
+PasswordHash:  string(hash),
+EmailVerified: false,
+}, nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+
+_, _, err := authSvc.Login(context.Background(), domain.LoginInput{
+Email:    "unverified@example.com",
+Password: "password123",
+})
+if !errors.Is(err, domain.ErrEmailNotVerified) {
+t.Errorf("expected ErrEmailNotVerified, got %v", err)
+}
+}
+
+func TestAuthService_VerifyEmail_Success(t *testing.T) {
+var markUsedCalled bool
+var verifyEmailCalled bool
+verifyRepo := &mock.EmailVerificationRepository{
+FindLatestByEmailFn: func(ctx context.Context, email string) (*domain.EmailVerification, error) {
+return &domain.EmailVerification{
+ID:        "v-1",
+UserID:    "user-1",
+Email:     email,
+Code:      "123456",
+ExpiresAt: time.Now().Add(10 * time.Minute),
+Used:      false,
+}, nil
+},
+MarkUsedFn: func(ctx context.Context, id string) error {
+markUsedCalled = true
+return nil
+},
+}
+repo := &mock.UserRepository{
+VerifyEmailFn: func(ctx context.Context, userID string) error {
+verifyEmailCalled = true
+return nil
+},
+FindByIDFn: func(ctx context.Context, id string) (*domain.User, error) {
+return &domain.User{
+ID:            id,
+Email:         "verify@example.com",
+EmailVerified: true,
+}, nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, nil, 15*time.Minute)
+
+user, tokens, err := authSvc.VerifyEmail(context.Background(), domain.VerifyEmailInput{
+Email: "verify@example.com",
+Code:  "123456",
+})
+if err != nil {
+t.Fatalf("VerifyEmail failed: %v", err)
+}
+if user == nil {
+t.Fatal("expected user, got nil")
+}
+if tokens == nil || tokens.AccessToken == "" {
+t.Error("expected tokens with access token")
+}
+if !markUsedCalled {
+t.Error("expected MarkUsed to be called")
+}
+if !verifyEmailCalled {
+t.Error("expected VerifyEmail to be called on user repo")
+}
+}
+
+func TestAuthService_VerifyEmail_InvalidCode(t *testing.T) {
+verifyRepo := &mock.EmailVerificationRepository{
+FindLatestByEmailFn: func(ctx context.Context, email string) (*domain.EmailVerification, error) {
+return &domain.EmailVerification{
+ID:        "v-1",
+UserID:    "user-1",
+Email:     email,
+Code:      "999999",
+ExpiresAt: time.Now().Add(10 * time.Minute),
+Used:      false,
+}, nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(nil, tokenSvc, verifyRepo, nil, 15*time.Minute)
+
+_, _, err := authSvc.VerifyEmail(context.Background(), domain.VerifyEmailInput{
+Email: "verify@example.com",
+Code:  "000000",
+})
+if !errors.Is(err, domain.ErrInvalidVerificationCode) {
+t.Errorf("expected ErrInvalidVerificationCode, got %v", err)
+}
+}
+
+func TestAuthService_VerifyEmail_ExpiredCode(t *testing.T) {
+verifyRepo := &mock.EmailVerificationRepository{
+FindLatestByEmailFn: func(ctx context.Context, email string) (*domain.EmailVerification, error) {
+return &domain.EmailVerification{
+ID:        "v-1",
+UserID:    "user-1",
+Email:     email,
+Code:      "123456",
+ExpiresAt: time.Now().Add(-1 * time.Hour),
+Used:      false,
+}, nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(nil, tokenSvc, verifyRepo, nil, 15*time.Minute)
+
+_, _, err := authSvc.VerifyEmail(context.Background(), domain.VerifyEmailInput{
+Email: "verify@example.com",
+Code:  "123456",
+})
+if !errors.Is(err, domain.ErrVerificationExpired) {
+t.Errorf("expected ErrVerificationExpired, got %v", err)
+}
+}
+
+func TestAuthService_ResendCode_Success(t *testing.T) {
+var codeCreated bool
+var emailSent bool
+repo := &mock.UserRepository{
+FindByEmailFn: func(ctx context.Context, email string) (*domain.User, error) {
+return &domain.User{
+ID:            "user-1",
+Email:         email,
+EmailVerified: false,
+}, nil
+},
+}
+verifyRepo := &mock.EmailVerificationRepository{
+CreateFn: func(ctx context.Context, v *domain.EmailVerification) error {
+codeCreated = true
+return nil
+},
+}
+emailSvc := &mock.EmailServiceMock{
+SendVerificationCodeFn: func(to, code string) error {
+emailSent = true
+return nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(repo, tokenSvc, verifyRepo, emailSvc, 15*time.Minute)
+
+err := authSvc.ResendCode(context.Background(), domain.ResendCodeInput{
+Email: "resend@example.com",
+})
+if err != nil {
+t.Fatalf("ResendCode failed: %v", err)
+}
+if !codeCreated {
+t.Error("expected verification code to be created")
+}
+if !emailSent {
+t.Error("expected verification email to be sent")
+}
+}
+
+func TestAuthService_ResendCode_UserNotFound(t *testing.T) {
+repo := &mock.UserRepository{
+FindByEmailFn: func(ctx context.Context, email string) (*domain.User, error) {
+return nil, domain.ErrUserNotFound
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+
+err := authSvc.ResendCode(context.Background(), domain.ResendCodeInput{
+Email: "unknown@example.com",
+})
+if !errors.Is(err, domain.ErrUserNotFound) {
+t.Errorf("expected ErrUserNotFound, got %v", err)
+}
+}
+
+func TestAuthService_ResendCode_AlreadyVerified(t *testing.T) {
+repo := &mock.UserRepository{
+FindByEmailFn: func(ctx context.Context, email string) (*domain.User, error) {
+return &domain.User{
+ID:            "user-1",
+Email:         email,
+EmailVerified: true,
+}, nil
+},
+}
+tokenSvc := NewJWTTokenService(testSecret)
+authSvc := NewAuthService(repo, tokenSvc, nil, nil, 15*time.Minute)
+
+err := authSvc.ResendCode(context.Background(), domain.ResendCodeInput{
+Email: "verified@example.com",
+})
+if !errors.Is(err, domain.ErrAlreadyVerified) {
+t.Errorf("expected ErrAlreadyVerified, got %v", err)
 }
 }

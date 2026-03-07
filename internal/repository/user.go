@@ -21,10 +21,10 @@ func NewUserRepository(db *pgxpool.Pool) domain.UserRepository {
 
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	err := r.db.QueryRow(ctx,
-		`INSERT INTO users (name, email, password_hash)
-		 VALUES ($1, $2, $3)
+		`INSERT INTO users (name, email, password_hash, email_verified)
+		 VALUES ($1, $2, $3, $4)
 		 RETURNING id, created_at, updated_at`,
-		user.Name, user.Email, user.PasswordHash,
+		user.Name, user.Email, user.PasswordHash, user.EmailVerified,
 	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "23505") {
@@ -38,10 +38,10 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
 	user := &domain.User{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, name, email, password_hash, created_at, updated_at
+		`SELECT id, name, email, password_hash, email_verified, created_at, updated_at
 		 FROM users WHERE email = $1`,
 		email,
-	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrUserNotFound
@@ -54,10 +54,10 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*domain
 func (r *userRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	user := &domain.User{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, name, email, password_hash, created_at, updated_at
+		`SELECT id, name, email, password_hash, email_verified, created_at, updated_at
 		 FROM users WHERE id = $1`,
 		id,
-	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Name, &user.Email, &user.PasswordHash, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrUserNotFound
@@ -65,4 +65,15 @@ func (r *userRepository) FindByID(ctx context.Context, id string) (*domain.User,
 		return nil, fmt.Errorf("find user by id: %w", err)
 	}
 	return user, nil
+}
+
+func (r *userRepository) VerifyEmail(ctx context.Context, userID string) error {
+	_, err := r.db.Exec(ctx,
+		`UPDATE users SET email_verified = true, updated_at = now() WHERE id = $1`,
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("verify email: %w", err)
+	}
+	return nil
 }

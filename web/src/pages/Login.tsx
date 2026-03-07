@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
-import { useAuth } from '../lib/auth';
+import { useAuth, EmailNotVerifiedError } from '../lib/auth';
 import { useNavigate, Link } from 'react-router-dom';
+import api from '../lib/api';
 import ErrorAlert from '../components/ErrorAlert';
 
 export default function Login() {
@@ -9,17 +10,37 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  const handleResendCode = async () => {
+    setResending(true);
+    try {
+      await api.post('/auth/resend-code', { email });
+      navigate('/verificar-email', { state: { email } });
+    } catch {
+      setError('Erro ao reenviar código. Tente novamente.');
+    } finally {
+      setResending(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+    setEmailNotVerified(false);
     setLoading(true);
     try {
       await login(email, password);
       navigate('/');
-    } catch {
-      setError('Email ou senha inválidos');
+    } catch (err) {
+      if (err instanceof EmailNotVerifiedError) {
+        setError('Seu email ainda não foi verificado.');
+        setEmailNotVerified(true);
+      } else {
+        setError('Email ou senha inválidos');
+      }
     } finally {
       setLoading(false);
     }
@@ -31,7 +52,17 @@ export default function Login() {
         <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
           Entrar no Contas
         </h1>
-        <ErrorAlert message={error} onDismiss={() => setError('')} />
+        <ErrorAlert message={error} onDismiss={() => { setError(''); setEmailNotVerified(false); }} />
+        {emailNotVerified && (
+          <button
+            type="button"
+            onClick={handleResendCode}
+            disabled={resending}
+            className="mb-4 w-full rounded-md bg-yellow-500 px-4 py-2 text-white hover:bg-yellow-600 disabled:opacity-50"
+          >
+            {resending ? 'Reenviando...' : 'Reenviar código'}
+          </button>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700">

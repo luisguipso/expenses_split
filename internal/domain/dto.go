@@ -33,6 +33,12 @@ type AuthResponse struct {
 	Tokens *TokenPair   `json:"tokens"`
 }
 
+type RegisterResponse struct {
+	User          UserResponse `json:"user"`
+	EmailVerified bool         `json:"email_verified"`
+	Message       string       `json:"message"`
+}
+
 type TokenResponse struct {
 	Tokens *TokenPair `json:"tokens"`
 }
@@ -45,6 +51,15 @@ type MeResponse struct {
 type HealthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database"`
+}
+
+type VerifyEmailInput struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
+type ResendCodeInput struct {
+	Email string `json:"email"`
 }
 
 // Household DTOs

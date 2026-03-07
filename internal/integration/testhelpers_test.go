@@ -62,6 +62,11 @@ func TestMain(m *testing.M) {
 
 const jwtSecret = "integration-test-secret"
 
+// noopEmailService is a no-op email service for integration tests.
+type noopEmailService struct{}
+
+func (n *noopEmailService) SendVerificationCode(to, code string) error { return nil }
+
 func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	userRepo := repository.NewUserRepository(db)
 	householdRepo := repository.NewHouseholdRepository(db)
@@ -71,9 +76,10 @@ func setupEcho(db *pgxpool.Pool) *echo.Echo {
 	summaryRepo := repository.NewSummaryRepository(db)
 	snapshotRepo := repository.NewFixedBillSnapshotRepository(db)
 	healthChecker := repository.NewHealthChecker(db)
+	verificationRepo := repository.NewEmailVerificationRepository(db)
 
 	tokenService := service.NewJWTTokenService(jwtSecret)
-	authService := service.NewAuthService(userRepo, tokenService)
+	authService := service.NewAuthService(userRepo, tokenService, verificationRepo, &noopEmailService{}, 15*time.Minute)
 	householdService := service.NewHouseholdService(householdRepo)
 	categoryService := service.NewCategoryService(categoryRepo, householdRepo)
 	fixedBillService := service.NewFixedBillService(fixedBillRepo, householdRepo)
@@ -129,6 +135,7 @@ func cleanDB(t *testing.T) {
 		"categories",
 		"household_members",
 		"households",
+		"email_verifications",
 		"users",
 	}
 	for _, table := range tables {
@@ -140,26 +147,44 @@ func cleanDB(t *testing.T) {
 
 // authUser holds credentials and tokens for a registered test user.
 type authUser struct {
-	ID          string
-	Name        string
-	Email       string
-	AccessToken string
+	ID           string
+	Name         string
+	Email        string
+	AccessToken  string
+	RefreshToken string
 }
 
-// registerUser creates a new user via the API and returns auth info.
+// registerUser creates a new user via the API, verifies the email, and returns auth info.
 func registerUser(t *testing.T, name, email, password string) authUser {
 	t.Helper()
 	body := domain.RegisterInput{Name: name, Email: email, Password: password}
 	resp := doJSON(t, http.MethodPost, "/auth/register", body, "", http.StatusCreated)
 
-	var result domain.AuthResponse
-	decodeJSON(t, resp, &result)
+	var regResult domain.RegisterResponse
+	decodeJSON(t, resp, &regResult)
+
+	// Read verification code from DB
+	var code string
+	err := env.db.QueryRow(context.Background(),
+		"SELECT code FROM email_verifications WHERE email = $1 ORDER BY created_at DESC LIMIT 1",
+		email).Scan(&code)
+	if err != nil {
+		t.Fatalf("read verification code: %v", err)
+	}
+
+	// Verify email to get tokens
+	verifyResp := doJSON(t, http.MethodPost, "/auth/verify-email",
+		domain.VerifyEmailInput{Email: email, Code: code}, "", http.StatusOK)
+
+	var authResult domain.AuthResponse
+	decodeJSON(t, verifyResp, &authResult)
 
 	return authUser{
-		ID:          fmt.Sprintf("%v", result.User.ID),
-		Name:        result.User.Name,
-		Email:       result.User.Email,
-		AccessToken: result.Tokens.AccessToken,
+		ID:           fmt.Sprintf("%v", authResult.User.ID),
+		Name:         authResult.User.Name,
+		Email:        authResult.User.Email,
+		AccessToken:  authResult.Tokens.AccessToken,
+		RefreshToken: authResult.Tokens.RefreshToken,
 	}
 }
 
