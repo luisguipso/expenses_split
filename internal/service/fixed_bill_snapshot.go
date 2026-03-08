@@ -41,9 +41,7 @@ func (s *fixedBillSnapshotService) Update(ctx context.Context, id string, input 
 	snap.PaidBy = input.PaidBy
 	snap.AssignedTo = input.AssignedTo
 
-	if snap.PaidBy == "" {
-		snap.PaidBy = userID
-	}
+	snap.SetDefaultPaidBy(userID)
 
 	if err := s.snapshotRepo.Update(ctx, snap); err != nil {
 		return nil, fmt.Errorf("update snapshot: %w", err)

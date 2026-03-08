@@ -70,14 +70,14 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		Month:       month,
 	}
 	for _, b := range breakdown {
-		summary.Items = append(summary.Items, domain.MonthlySummaryItem{
+		item := domain.MonthlySummaryItem{
 			UserID:             b.UserID,
 			TotalSharedCents:   b.TotalSharedCents,
 			TotalPersonalCents: b.TotalPersonalCents,
-			AmountDueCents:     b.AmountDueCents,
 			TotalPaidCents:     b.TotalPaidCents,
-			BalanceCents:       b.BalanceCents,
-		})
+		}
+		item.CalculateBalance()
+		summary.Items = append(summary.Items, item)
 	}
 	if err := s.summaryRepo.Upsert(ctx, summary); err != nil {
 		return nil, fmt.Errorf("persist summary: %w", err)
@@ -184,18 +184,6 @@ type resolvedBill struct {
 	SnapshotID   string
 }
 
-// dueDayPassed checks if a bill's due_day has passed for the given year/month.
-// If due_day > days in month, it's treated as the last day of the month.
-func dueDayPassed(year, month, dueDay int, now time.Time) bool {
-	lastDay := time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, now.Location()).Day()
-	effectiveDueDay := dueDay
-	if effectiveDueDay > lastDay {
-		effectiveDueDay = lastDay
-	}
-	dueDate := time.Date(year, time.Month(month), effectiveDueDay, 23, 59, 59, 0, now.Location())
-	return now.After(dueDate)
-}
-
 // resolveFixedBills returns the effective fixed bill values for a given month.
 // Bills whose due_day has passed are frozen (snapshotted); others use live values.
 func (s *summaryService) resolveFixedBills(ctx context.Context, householdID string, year, month int) ([]resolvedBill, error) {
@@ -253,7 +241,7 @@ func (s *summaryService) resolveFixedBills(ctx context.Context, householdID stri
 			continue
 		}
 
-		if dueDayPassed(year, month, b.DueDay, now) {
+		if b.HasDueDatePassed(year, month, now) {
 			// Due day passed, create snapshot
 			snap := &domain.FixedBillSnapshot{
 				FixedBillID: b.ID,
@@ -347,11 +335,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		if e.IsShared {
 			totalShared += e.AmountCents
 		} else {
-			assignee := e.AssignedTo
-			if assignee == "" {
-				assignee = e.PaidBy
-			}
-			personalByUser[assignee] += e.AmountCents
+			personalByUser[e.EffectiveAssignee()] += e.AmountCents
 		}
 	}
 
@@ -569,11 +553,7 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 			totalShared += shareCents
 		} else {
 			// Only include personal expenses if assigned to this user (or paid by if no assignment)
-			assignee := e.AssignedTo
-			if assignee == "" {
-				assignee = e.PaidBy
-			}
-			if assignee == targetUserID {
+			if e.EffectiveAssignee() == targetUserID {
 				items = append(items, domain.SummaryDetailItem{
 					Description:    e.Description,
 					Type:           "expense",

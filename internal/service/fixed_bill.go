@@ -31,9 +31,7 @@ func (s *fixedBillService) Create(ctx context.Context, input domain.CreateFixedB
 		PaidBy:      input.PaidBy,
 		AssignedTo:  input.AssignedTo,
 	}
-	if b.PaidBy == "" {
-		b.PaidBy = userID
-	}
+	b.SetDefaultPaidBy(userID)
 	if err := s.repo.Create(ctx, b); err != nil {
 		return nil, err
 	}
@@ -66,9 +64,7 @@ func (s *fixedBillService) Update(ctx context.Context, id string, input domain.U
 	b.AssignedTo = input.AssignedTo
 	b.IsActive = input.IsActive
 
-	if b.PaidBy == "" {
-		b.PaidBy = userID
-	}
+	b.SetDefaultPaidBy(userID)
 
 	if err := s.repo.Update(ctx, b); err != nil {
 		return nil, err

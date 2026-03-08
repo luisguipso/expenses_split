@@ -2,10 +2,7 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"fmt"
 
 	"github.com/lguilherme/contas/internal/domain"
 )
@@ -19,14 +16,9 @@ func NewHouseholdService(repo domain.HouseholdRepository) domain.HouseholdServic
 }
 
 func (s *householdService) Create(ctx context.Context, input domain.CreateHouseholdInput, userID string) (*domain.Household, error) {
-	code, err := generateInviteCode()
+	h, err := domain.NewHousehold(input.Name)
 	if err != nil {
-		return nil, fmt.Errorf("generate invite code: %w", err)
-	}
-
-	h := &domain.Household{
-		Name:       input.Name,
-		InviteCode: code,
+		return nil, err
 	}
 
 	if err := s.repo.Create(ctx, h, userID); err != nil {
@@ -59,7 +51,7 @@ func (s *householdService) Update(ctx context.Context, id string, input domain.U
 		}
 		return nil, err
 	}
-	if member.Role != "admin" {
+	if !member.IsAdmin() {
 		return nil, domain.ErrForbidden
 	}
 
@@ -79,7 +71,7 @@ func (s *householdService) Delete(ctx context.Context, id, userID string) error 
 		}
 		return err
 	}
-	if member.Role != "admin" {
+	if !member.IsAdmin() {
 		return domain.ErrForbidden
 	}
 
@@ -119,7 +111,7 @@ func (s *householdService) UpdateMemberSalary(ctx context.Context, householdID, 
 		}
 		return err
 	}
-	if member.Role != "admin" && userID != memberID {
+	if !member.CanManage(memberID) {
 		return domain.ErrForbidden
 	}
 
@@ -134,17 +126,9 @@ func (s *householdService) RemoveMember(ctx context.Context, householdID, member
 		}
 		return err
 	}
-	if member.Role != "admin" && userID != memberID {
+	if !member.CanManage(memberID) {
 		return domain.ErrForbidden
 	}
 
 	return s.repo.RemoveMember(ctx, householdID, memberID)
-}
-
-func generateInviteCode() (string, error) {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(b), nil
 }

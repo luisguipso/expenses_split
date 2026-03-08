@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Expense struct {
 	ID           string    `json:"id"`
@@ -16,4 +19,28 @@ type Expense struct {
 	AssignedTo   string    `json:"assigned_to,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+func (e *Expense) Validate() error {
+	if e.AmountCents <= 0 {
+		return fmt.Errorf("amount must be positive, got %d", e.AmountCents)
+	}
+	return nil
+}
+
+func (e *Expense) SetDefaults(userID string) {
+	if e.ExpenseDate == "" {
+		e.ExpenseDate = time.Now().Format("2006-01-02")
+	}
+	if e.PaidBy == "" {
+		e.PaidBy = userID
+	}
+}
+
+// EffectiveAssignee returns AssignedTo if set, otherwise falls back to PaidBy.
+func (e *Expense) EffectiveAssignee() string {
+	if e.AssignedTo != "" {
+		return e.AssignedTo
+	}
+	return e.PaidBy
 }

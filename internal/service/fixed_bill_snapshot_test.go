@@ -10,9 +10,9 @@ import (
 	"github.com/lguilherme/contas/internal/mock"
 )
 
-// --- dueDayPassed tests ---
+// --- HasDueDatePassed tests (now a domain method on FixedBill) ---
 
-func TestDueDayPassed(t *testing.T) {
+func TestFixedBill_HasDueDatePassed(t *testing.T) {
 	tests := []struct {
 		name    string
 		year    int
@@ -73,10 +73,11 @@ func TestDueDayPassed(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := dueDayPassed(tt.year, tt.month, tt.dueDay, tt.now)
+			bill := &domain.FixedBill{DueDay: tt.dueDay}
+			got := bill.HasDueDatePassed(tt.year, tt.month, tt.now)
 			if got != tt.want {
-				t.Errorf("dueDayPassed(%d, %d, %d, %v) = %v, want %v",
-					tt.year, tt.month, tt.dueDay, tt.now, got, tt.want)
+				t.Errorf("HasDueDatePassed(%d, %d, %v) = %v, want %v",
+					tt.year, tt.month, tt.now, got, tt.want)
 			}
 		})
 	}

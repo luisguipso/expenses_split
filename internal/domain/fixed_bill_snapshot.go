@@ -19,3 +19,9 @@ type FixedBillSnapshot struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+func (s *FixedBillSnapshot) SetDefaultPaidBy(userID string) {
+	if s.PaidBy == "" {
+		s.PaidBy = userID
+	}
+}

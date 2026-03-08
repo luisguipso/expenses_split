@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/lguilherme/contas/internal/domain"
 )
@@ -22,21 +21,16 @@ func (s *expenseService) Create(ctx context.Context, input domain.CreateExpenseI
 		return nil, err
 	}
 
-	expDate := input.ExpenseDate
-	if expDate == "" {
-		expDate = time.Now().Format("2006-01-02")
-	}
-
 	e := &domain.Expense{
 		HouseholdID: householdID,
 		CategoryID:  input.CategoryID,
 		Description: input.Description,
 		AmountCents: input.AmountCents,
-		ExpenseDate: expDate,
+		ExpenseDate: input.ExpenseDate,
 		IsShared:    input.IsShared,
-		PaidBy:      userID,
 		AssignedTo:  input.AssignedTo,
 	}
+	e.SetDefaults(userID)
 	if err := s.repo.Create(ctx, e); err != nil {
 		return nil, err
 	}

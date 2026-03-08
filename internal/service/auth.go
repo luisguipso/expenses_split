@@ -2,15 +2,12 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
-	"math/big"
 	"time"
 
 	"github.com/lguilherme/contas/internal/domain"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type authService struct {
@@ -47,16 +44,14 @@ func NewAuthService(
 }
 
 func (s *authService) Register(ctx context.Context, input domain.RegisterInput) (*domain.User, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, fmt.Errorf("hash password: %w", err)
-	}
-
 	user := &domain.User{
 		Name:          input.Name,
 		Email:         input.Email,
-		PasswordHash:  string(hash),
 		EmailVerified: false,
+	}
+
+	if err := user.SetPassword(input.Password); err != nil {
+		return nil, err
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -68,19 +63,13 @@ func (s *authService) Register(ctx context.Context, input domain.RegisterInput) 
 
 	slog.Info("user registered", "user_id", user.ID, "email", user.Email)
 
-	code := generateCode()
-	verification := &domain.EmailVerification{
-		UserID:    user.ID,
-		Email:     user.Email,
-		Code:      code,
-		ExpiresAt: time.Now().Add(s.codeExpiration),
-	}
+	verification := domain.NewEmailVerification(user.ID, user.Email, s.codeExpiration)
 
 	if err := s.verifyRepo.Create(ctx, verification); err != nil {
 		return nil, fmt.Errorf("create verification: %w", err)
 	}
 
-	if err := s.emailSvc.SendVerificationCode(user.Email, code); err != nil {
+	if err := s.emailSvc.SendVerificationCode(user.Email, verification.Code); err != nil {
 		slog.Error("failed to send verification email", "error", err, "email", user.Email)
 		return nil, fmt.Errorf("send verification email: %w", err)
 	}
@@ -99,13 +88,13 @@ func (s *authService) Login(ctx context.Context, input domain.LoginInput) (*doma
 		return nil, nil, err
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+	if err := user.VerifyPassword(input.Password); err != nil {
 		return nil, nil, domain.ErrInvalidCredentials
 	}
 
-	if !user.EmailVerified {
+	if err := user.RequireVerifiedEmail(); err != nil {
 		slog.Warn("login attempt with unverified email", "email", input.Email)
-		return nil, nil, domain.ErrEmailNotVerified
+		return nil, nil, err
 	}
 
 	tokens, err := s.tokens.Generate(user.ID, user.Email)
@@ -134,12 +123,8 @@ func (s *authService) VerifyEmail(ctx context.Context, input domain.VerifyEmailI
 		return nil, nil, err
 	}
 
-	if time.Now().After(verification.ExpiresAt) {
-		return nil, nil, domain.ErrVerificationExpired
-	}
-
-	if verification.Code != input.Code {
-		return nil, nil, domain.ErrInvalidVerificationCode
+	if err := verification.MatchesCode(input.Code); err != nil {
+		return nil, nil, err
 	}
 
 	if err := s.verifyRepo.MarkUsed(ctx, verification.ID); err != nil {
@@ -174,23 +159,17 @@ func (s *authService) ResendCode(ctx context.Context, input domain.ResendCodeInp
 		return err
 	}
 
-	if user.EmailVerified {
+	if err := user.RequireVerifiedEmail(); err == nil {
 		return domain.ErrAlreadyVerified
 	}
 
-	code := generateCode()
-	verification := &domain.EmailVerification{
-		UserID:    user.ID,
-		Email:     user.Email,
-		Code:      code,
-		ExpiresAt: time.Now().Add(s.codeExpiration),
-	}
+	verification := domain.NewEmailVerification(user.ID, user.Email, s.codeExpiration)
 
 	if err := s.verifyRepo.Create(ctx, verification); err != nil {
 		return fmt.Errorf("create verification: %w", err)
 	}
 
-	if err := s.emailSvc.SendVerificationCode(user.Email, code); err != nil {
+	if err := s.emailSvc.SendVerificationCode(user.Email, verification.Code); err != nil {
 		slog.Error("failed to resend verification email", "error", err, "email", user.Email)
 		return fmt.Errorf("send verification email: %w", err)
 	}
@@ -200,47 +179,26 @@ func (s *authService) ResendCode(ctx context.Context, input domain.ResendCodeInp
 	return nil
 }
 
-func generateCode() string {
-	n, _ := rand.Int(rand.Reader, big.NewInt(1000000))
-	return fmt.Sprintf("%06d", n.Int64())
-}
-
-func generateToken() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("generate reset token: %w", err)
-	}
-	return fmt.Sprintf("%x", b), nil
-}
-
 func (s *authService) ForgotPassword(ctx context.Context, input domain.ForgotPasswordInput) error {
 	user, err := s.userRepo.FindByEmail(ctx, input.Email)
 	if err != nil {
 		if errors.Is(err, domain.ErrUserNotFound) {
-			// Silent success to avoid leaking whether the email exists
 			slog.Info("forgot password for unknown email", "email", input.Email)
 			return nil
 		}
 		return err
 	}
 
-	token, err := generateToken()
+	reset, err := domain.NewPasswordReset(user.ID, user.Email, s.resetExpiration)
 	if err != nil {
 		return err
-	}
-
-	reset := &domain.PasswordReset{
-		UserID:    user.ID,
-		Email:     user.Email,
-		Token:     token,
-		ExpiresAt: time.Now().Add(s.resetExpiration),
 	}
 
 	if err := s.resetRepo.Create(ctx, reset); err != nil {
 		return fmt.Errorf("create password reset: %w", err)
 	}
 
-	resetLink := fmt.Sprintf("%s/password-recover?token=%s", s.frontendURL, token)
+	resetLink := fmt.Sprintf("%s/password-recover?token=%s", s.frontendURL, reset.Token)
 	if err := s.emailSvc.SendPasswordResetLink(user.Email, resetLink); err != nil {
 		slog.Error("failed to send password reset email", "error", err, "email", user.Email)
 		return fmt.Errorf("send password reset email: %w", err)
@@ -259,7 +217,7 @@ func (s *authService) ResetPassword(ctx context.Context, input domain.ResetPassw
 		return err
 	}
 
-	if time.Now().After(reset.ExpiresAt) {
+	if reset.IsExpired() {
 		return domain.ErrResetTokenExpired
 	}
 
@@ -268,16 +226,15 @@ func (s *authService) ResetPassword(ctx context.Context, input domain.ResetPassw
 		return err
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.NewPassword)); err == nil {
+	if user.IsSamePassword(input.NewPassword) {
 		return domain.ErrPasswordSameAsOld
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("hash password: %w", err)
+	if err := user.SetPassword(input.NewPassword); err != nil {
+		return err
 	}
 
-	if err := s.userRepo.UpdatePassword(ctx, user.ID, string(hash)); err != nil {
+	if err := s.userRepo.UpdatePassword(ctx, user.ID, user.PasswordHash); err != nil {
 		return err
 	}
 

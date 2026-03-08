@@ -21,16 +21,12 @@ func (s *categoryService) Create(ctx context.Context, input domain.CreateCategor
 		return nil, err
 	}
 
-	icon := input.Icon
-	if icon == "" {
-		icon = "📦"
-	}
-
 	c := &domain.Category{
 		HouseholdID: householdID,
 		Name:        input.Name,
-		Icon:        icon,
+		Icon:        input.Icon,
 	}
+	c.SetDefaultIcon()
 	if err := s.repo.Create(ctx, c); err != nil {
 		return nil, err
 	}

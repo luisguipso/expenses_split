@@ -22,3 +22,22 @@ type MonthlySummaryItem struct {
 	TotalPaidCents     int64  `json:"total_paid_cents"`
 	BalanceCents       int64  `json:"balance_cents"`
 }
+
+func (item *MonthlySummaryItem) AddSharedExpense(amountCents int64) {
+	item.TotalSharedCents += amountCents
+}
+
+func (item *MonthlySummaryItem) AddPersonalExpense(amountCents int64) {
+	item.TotalPersonalCents += amountCents
+}
+
+func (item *MonthlySummaryItem) AddPaidAmount(amountCents int64) {
+	item.TotalPaidCents += amountCents
+}
+
+// CalculateBalance derives BalanceCents and AmountDueCents from the
+// accumulated shared/personal/paid values.
+func (item *MonthlySummaryItem) CalculateBalance() {
+	item.AmountDueCents = item.TotalSharedCents + item.TotalPersonalCents
+	item.BalanceCents = item.TotalPaidCents - item.AmountDueCents
+}
