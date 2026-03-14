@@ -29,6 +29,10 @@
 
 ## Workflow
 
+- **Before starting development**:
+  - Stash any staged and unstaged changes: `git stash --include-untracked`
+  - Fetch and update `master`: `git fetch origin master`
+  - Create a new branch named after the plan, based on the updated `master`: `git checkout -b <plan-branch-name> origin/master`
 - After every implementation, **compile and run tests**:
   - Backend: `go build ./...` and `go test ./... -count=1`
   - Frontend: `npx tsc --noEmit`
