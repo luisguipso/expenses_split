@@ -35,6 +35,10 @@ func TestSummaryHandler_GetSummary_Success(t *testing.T) {
 					{UserID: "u1", UserName: "Alice", AmountDueCents: 7000},
 					{UserID: "u2", UserName: "Bob", AmountDueCents: 5000},
 				},
+				CategoryTotals: []domain.CategoryBreakdownItem{
+					{CategoryName: "Alimentação", TotalCents: 8000},
+					{CategoryName: "Transporte", TotalCents: 4000},
+				},
 			}, nil
 		},
 	}
@@ -61,6 +65,12 @@ func TestSummaryHandler_GetSummary_Success(t *testing.T) {
 	}
 	if len(resp.Items) != 2 {
 		t.Errorf("expected 2 items, got %d", len(resp.Items))
+	}
+	if len(resp.CategoryTotals) != 2 {
+		t.Errorf("expected 2 category totals, got %d", len(resp.CategoryTotals))
+	}
+	if resp.CategoryTotals[0].CategoryName != "Alimentação" {
+		t.Errorf("expected Alimentação, got %s", resp.CategoryTotals[0].CategoryName)
 	}
 }
 

@@ -20,6 +20,11 @@ export interface SettlementTransfer {
   amount_cents: number;
 }
 
+export interface CategoryBreakdownItem {
+  category_name: string;
+  total_cents: number;
+}
+
 export interface SummaryResponse {
   id: string;
   household_id: string;
@@ -31,6 +36,7 @@ export interface SummaryResponse {
   items: SummaryItem[];
   settlements: SettlementTransfer[];
   fixed_bills: FixedBillSnapshot[];
+  category_totals: CategoryBreakdownItem[];
 }
 
 export interface FixedBillSnapshot {
