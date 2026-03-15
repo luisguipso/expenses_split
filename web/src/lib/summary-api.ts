@@ -31,6 +31,7 @@ export interface SummaryResponse {
   items: SummaryItem[];
   settlements: SettlementTransfer[];
   fixed_bills: FixedBillSnapshot[];
+  warnings?: string[];
 }
 
 export interface FixedBillSnapshot {

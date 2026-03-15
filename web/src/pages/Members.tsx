@@ -14,15 +14,23 @@ function formatCurrency(cents: number): string {
   });
 }
 
+function formatPercentage(basisPoints: number): string {
+  return `${(basisPoints / 100).toFixed(2)}%`;
+}
+
 export default function Members() {
   const { user } = useAuth();
-  const { activeHousehold } = useHousehold();
+  const { activeHousehold, households, selectHousehold } = useHousehold();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [salaryInput, setSalaryInput] = useState('');
+  const [percentageInput, setPercentageInput] = useState('');
   const [copied, setCopied] = useState(false);
+
+  const splitMode = activeHousehold?.split_mode ?? 'salary';
+  const isPercentageMode = splitMode === 'percentage';
 
   const fetchMembers = async () => {
     if (!activeHousehold) return;
@@ -43,9 +51,18 @@ export default function Members() {
   const currentUserMember = members.find((m) => m.user_id === user?.id);
   const isAdmin = currentUserMember?.role === 'admin';
 
+  const percentageSum = members.reduce((sum, m) => sum + m.split_percentage, 0);
+  const percentageSumValid = percentageSum === 10000;
+
   const handleSalaryEdit = (member: Member) => {
     setEditingId(member.user_id);
     setSalaryInput((member.salary_cents / 100).toFixed(2));
+    setError('');
+  };
+
+  const handlePercentageEdit = (member: Member) => {
+    setEditingId(member.user_id);
+    setPercentageInput((member.split_percentage / 100).toFixed(2));
     setError('');
   };
 
@@ -62,6 +79,33 @@ export default function Members() {
       await fetchMembers();
     } catch {
       setError('Erro ao atualizar salário. Sem permissão.');
+    }
+  };
+
+  const handlePercentageSave = async (memberId: string) => {
+    if (!activeHousehold) return;
+    const basisPoints = Math.round(parseFloat(percentageInput) * 100);
+    if (isNaN(basisPoints) || basisPoints < 0 || basisPoints > 10000) {
+      setError('Percentual deve ser entre 0 e 100');
+      return;
+    }
+    try {
+      await householdApi.updateSplitPercentage(activeHousehold.id, memberId, basisPoints);
+      setEditingId(null);
+      await fetchMembers();
+    } catch {
+      setError('Erro ao atualizar percentual. Sem permissão.');
+    }
+  };
+
+  const handleSplitModeChange = async (mode: string) => {
+    if (!activeHousehold) return;
+    try {
+      await householdApi.updateSplitMode(activeHousehold.id, mode);
+      const updated = { ...activeHousehold, split_mode: mode };
+      selectHousehold(updated);
+    } catch {
+      setError('Erro ao alterar modo de divisão.');
     }
   };
 
@@ -82,6 +126,47 @@ export default function Members() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleEditClick = (member: Member) => {
+    if (isPercentageMode) {
+      handlePercentageEdit(member);
+    } else {
+      handleSalaryEdit(member);
+    }
+  };
+
+  const handleSaveClick = (memberId: string) => {
+    if (isPercentageMode) {
+      handlePercentageSave(memberId);
+    } else {
+      handleSalarySave(memberId);
+    }
+  };
+
+  const renderValueDisplay = (m: Member) => {
+    if (isPercentageMode) {
+      return m.split_percentage === 0
+        ? 'Não definido'
+        : formatPercentage(m.split_percentage);
+    }
+    return m.salary_cents === 0
+      ? 'Não definido'
+      : formatCurrency(m.salary_cents);
+  };
+
+  const renderMobileValueDisplay = (m: Member) => {
+    if (isPercentageMode) {
+      return m.split_percentage === 0
+        ? 'Percentual não definido'
+        : formatPercentage(m.split_percentage);
+    }
+    return m.salary_cents === 0
+      ? 'Salário não definido'
+      : formatCurrency(m.salary_cents);
+  };
+
+  const hasZeroValue = (m: Member) =>
+    isPercentageMode ? m.split_percentage === 0 : m.salary_cents === 0;
 
   if (!activeHousehold) {
     return (
@@ -112,6 +197,54 @@ export default function Members() {
           </div>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg bg-gray-50 px-4 py-3">
+          <span className="text-sm font-medium text-gray-700">Modo de divisão:</span>
+          <div className="flex rounded-md border border-gray-300 bg-white">
+            <button
+              onClick={() => handleSplitModeChange('salary')}
+              className={`rounded-l-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                !isPercentageMode
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Salário
+            </button>
+            <button
+              onClick={() => handleSplitModeChange('percentage')}
+              className={`rounded-r-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                isPercentageMode
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Percentual
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isPercentageMode && members.length > 0 && (
+        <div
+          className={`mb-4 rounded-lg px-4 py-3 text-sm ${
+            percentageSumValid
+              ? 'bg-green-50 text-green-700'
+              : 'bg-yellow-50 text-yellow-700'
+          }`}
+        >
+          {percentageSumValid ? (
+            <span>✓ Total dos percentuais: <strong>100%</strong></span>
+          ) : (
+            <span>
+              ⚠️ Total dos percentuais:{' '}
+              <strong>{(percentageSum / 100).toFixed(2)}%</strong> — deve ser
+              100%
+            </span>
+          )}
+        </div>
+      )}
 
       {error && (
         <ErrorAlert message={error} onDismiss={() => setError('')} />
@@ -148,33 +281,55 @@ export default function Members() {
                 <div className="flex items-center justify-between">
                   {editingId === m.user_id ? (
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-500">R$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={salaryInput}
-                        onChange={(e) => setSalaryInput(e.target.value)}
-                        className="w-28 rounded border border-gray-300 px-2 py-1 text-sm"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSalarySave(m.user_id);
-                          if (e.key === 'Escape') setEditingId(null);
-                        }}
-                      />
-                      <button onClick={() => handleSalarySave(m.user_id)} className="text-green-600">✓</button>
+                      {isPercentageMode ? (
+                        <>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            value={percentageInput}
+                            onChange={(e) => setPercentageInput(e.target.value)}
+                            className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveClick(m.user_id);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                          />
+                          <span className="text-gray-500">%</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-gray-500">R$</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={salaryInput}
+                            onChange={(e) => setSalaryInput(e.target.value)}
+                            className="w-28 rounded border border-gray-300 px-2 py-1 text-sm"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleSaveClick(m.user_id);
+                              if (e.key === 'Escape') setEditingId(null);
+                            }}
+                          />
+                        </>
+                      )}
+                      <button onClick={() => handleSaveClick(m.user_id)} className="text-green-600">✓</button>
                       <button onClick={() => setEditingId(null)} className="text-gray-400">✕</button>
                     </div>
                   ) : (
                     <span
                       className={`text-sm cursor-pointer hover:text-blue-600 ${
-                        m.salary_cents === 0 ? 'text-gray-400 italic' : 'text-gray-900'
+                        hasZeroValue(m) ? 'text-gray-400 italic' : 'text-gray-900'
                       }`}
                       onClick={() =>
-                        (isAdmin || m.user_id === user?.id) && handleSalaryEdit(m)
+                        (isAdmin || m.user_id === user?.id) && handleEditClick(m)
                       }
                     >
-                      {m.salary_cents === 0 ? 'Salário não definido' : formatCurrency(m.salary_cents)}
+                      {renderMobileValueDisplay(m)}
                     </span>
                   )}
                   <div>
@@ -207,7 +362,7 @@ export default function Members() {
                   Papel
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">
-                  Salário
+                  {isPercentageMode ? 'Percentual' : 'Salário'}
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
                   Ações
@@ -240,23 +395,44 @@ export default function Members() {
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
                     {editingId === m.user_id ? (
                       <div className="flex items-center gap-2">
-                        <span className="text-gray-500">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={salaryInput}
-                          onChange={(e) => setSalaryInput(e.target.value)}
-                          className="w-28 rounded border border-gray-300 px-2 py-1 text-sm"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter')
-                              handleSalarySave(m.user_id);
-                            if (e.key === 'Escape') setEditingId(null);
-                          }}
-                        />
+                        {isPercentageMode ? (
+                          <>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              max="100"
+                              value={percentageInput}
+                              onChange={(e) => setPercentageInput(e.target.value)}
+                              className="w-24 rounded border border-gray-300 px-2 py-1 text-sm"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveClick(m.user_id);
+                                if (e.key === 'Escape') setEditingId(null);
+                              }}
+                            />
+                            <span className="text-gray-500">%</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-gray-500">R$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={salaryInput}
+                              onChange={(e) => setSalaryInput(e.target.value)}
+                              className="w-28 rounded border border-gray-300 px-2 py-1 text-sm"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveClick(m.user_id);
+                                if (e.key === 'Escape') setEditingId(null);
+                              }}
+                            />
+                          </>
+                        )}
                         <button
-                          onClick={() => handleSalarySave(m.user_id)}
+                          onClick={() => handleSaveClick(m.user_id)}
                           className="text-green-600 hover:text-green-800"
                         >
                           ✓
@@ -271,11 +447,11 @@ export default function Members() {
                     ) : (
                       <span
                         className={`cursor-pointer hover:text-blue-600 ${
-                          m.salary_cents === 0 ? 'text-gray-400 italic' : ''
+                          hasZeroValue(m) ? 'text-gray-400 italic' : ''
                         }`}
                         onClick={() =>
                           (isAdmin || m.user_id === user?.id) &&
-                          handleSalaryEdit(m)
+                          handleEditClick(m)
                         }
                         title={
                           isAdmin || m.user_id === user?.id
@@ -283,9 +459,7 @@ export default function Members() {
                             : ''
                         }
                       >
-                        {m.salary_cents === 0
-                          ? 'Não definido'
-                          : formatCurrency(m.salary_cents)}
+                        {renderValueDisplay(m)}
                       </span>
                     )}
                   </td>

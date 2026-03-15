@@ -49,8 +49,8 @@ func (r *householdRepository) Create(ctx context.Context, h *domain.Household, a
 func (r *householdRepository) FindByID(ctx context.Context, id string) (*domain.Household, error) {
 	h := &domain.Household{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, name, invite_code, created_at, updated_at FROM households WHERE id = $1`, id,
-	).Scan(&h.ID, &h.Name, &h.InviteCode, &h.CreatedAt, &h.UpdatedAt)
+		`SELECT id, name, invite_code, split_mode, created_at, updated_at FROM households WHERE id = $1`, id,
+	).Scan(&h.ID, &h.Name, &h.InviteCode, &h.SplitMode, &h.CreatedAt, &h.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrHouseholdNotFound
@@ -63,8 +63,8 @@ func (r *householdRepository) FindByID(ctx context.Context, id string) (*domain.
 func (r *householdRepository) FindByInviteCode(ctx context.Context, code string) (*domain.Household, error) {
 	h := &domain.Household{}
 	err := r.db.QueryRow(ctx,
-		`SELECT id, name, invite_code, created_at, updated_at FROM households WHERE invite_code = $1`, code,
-	).Scan(&h.ID, &h.Name, &h.InviteCode, &h.CreatedAt, &h.UpdatedAt)
+		`SELECT id, name, invite_code, split_mode, created_at, updated_at FROM households WHERE invite_code = $1`, code,
+	).Scan(&h.ID, &h.Name, &h.InviteCode, &h.SplitMode, &h.CreatedAt, &h.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrInvalidInviteCode
@@ -76,7 +76,7 @@ func (r *householdRepository) FindByInviteCode(ctx context.Context, code string)
 
 func (r *householdRepository) ListByUser(ctx context.Context, userID string) ([]domain.Household, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT h.id, h.name, h.invite_code, h.created_at, h.updated_at
+		`SELECT h.id, h.name, h.invite_code, h.split_mode, h.created_at, h.updated_at
 		 FROM households h
 		 JOIN household_members hm ON h.id = hm.household_id
 		 WHERE hm.user_id = $1
@@ -90,7 +90,7 @@ func (r *householdRepository) ListByUser(ctx context.Context, userID string) ([]
 	var households []domain.Household
 	for rows.Next() {
 		var h domain.Household
-		if err := rows.Scan(&h.ID, &h.Name, &h.InviteCode, &h.CreatedAt, &h.UpdatedAt); err != nil {
+		if err := rows.Scan(&h.ID, &h.Name, &h.InviteCode, &h.SplitMode, &h.CreatedAt, &h.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan household: %w", err)
 		}
 		households = append(households, h)
@@ -165,9 +165,37 @@ func (r *householdRepository) UpdateMemberSalary(ctx context.Context, householdI
 	return nil
 }
 
+func (r *householdRepository) UpdateSplitMode(ctx context.Context, householdID, splitMode string) error {
+	result, err := r.db.Exec(ctx,
+		`UPDATE households SET split_mode = $1, updated_at = now() WHERE id = $2`,
+		splitMode, householdID,
+	)
+	if err != nil {
+		return fmt.Errorf("update split mode: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return domain.ErrHouseholdNotFound
+	}
+	return nil
+}
+
+func (r *householdRepository) UpdateMemberSplitPercentage(ctx context.Context, householdID, userID string, percentage int) error {
+	result, err := r.db.Exec(ctx,
+		`UPDATE household_members SET split_percentage = $1 WHERE household_id = $2 AND user_id = $3`,
+		percentage, householdID, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("update split percentage: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return domain.ErrNotMember
+	}
+	return nil
+}
+
 func (r *householdRepository) ListMembers(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
 	rows, err := r.db.Query(ctx,
-		`SELECT hm.household_id, hm.user_id, u.name, u.email, hm.salary_cents, hm.role, hm.joined_at
+		`SELECT hm.household_id, hm.user_id, u.name, u.email, hm.salary_cents, hm.split_percentage, hm.role, hm.joined_at
 		 FROM household_members hm
 		 JOIN users u ON u.id = hm.user_id
 		 WHERE hm.household_id = $1
@@ -181,7 +209,7 @@ func (r *householdRepository) ListMembers(ctx context.Context, householdID strin
 	var members []domain.HouseholdMember
 	for rows.Next() {
 		var m domain.HouseholdMember
-		if err := rows.Scan(&m.HouseholdID, &m.UserID, &m.UserName, &m.UserEmail, &m.SalaryCents, &m.Role, &m.JoinedAt); err != nil {
+		if err := rows.Scan(&m.HouseholdID, &m.UserID, &m.UserName, &m.UserEmail, &m.SalaryCents, &m.SplitPercentage, &m.Role, &m.JoinedAt); err != nil {
 			return nil, fmt.Errorf("scan member: %w", err)
 		}
 		members = append(members, m)
@@ -192,12 +220,12 @@ func (r *householdRepository) ListMembers(ctx context.Context, householdID strin
 func (r *householdRepository) GetMember(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error) {
 	m := &domain.HouseholdMember{}
 	err := r.db.QueryRow(ctx,
-		`SELECT hm.household_id, hm.user_id, u.name, u.email, hm.salary_cents, hm.role, hm.joined_at
+		`SELECT hm.household_id, hm.user_id, u.name, u.email, hm.salary_cents, hm.split_percentage, hm.role, hm.joined_at
 		 FROM household_members hm
 		 JOIN users u ON u.id = hm.user_id
 		 WHERE hm.household_id = $1 AND hm.user_id = $2`,
 		householdID, userID,
-	).Scan(&m.HouseholdID, &m.UserID, &m.UserName, &m.UserEmail, &m.SalaryCents, &m.Role, &m.JoinedAt)
+	).Scan(&m.HouseholdID, &m.UserID, &m.UserName, &m.UserEmail, &m.SalaryCents, &m.SplitPercentage, &m.Role, &m.JoinedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, domain.ErrNotMember

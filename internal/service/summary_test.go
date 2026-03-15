@@ -63,6 +63,12 @@ func snapshotCreateOK() func(ctx context.Context, snapshot *domain.FixedBillSnap
 	}
 }
 
+func salaryModeHousehold() func(ctx context.Context, id string) (*domain.Household, error) {
+	return func(ctx context.Context, id string) (*domain.Household, error) {
+		return &domain.Household{ID: id, Name: "Casa", SplitMode: "salary"}, nil
+	}
+}
+
 func makeSummaryService(
 	hhRepo *mock.HouseholdRepository,
 	expRepo *mock.ExpenseRepository,
@@ -75,6 +81,9 @@ func makeSummaryService(
 			FindByMonthFn: noSnapshots(),
 			CreateFn:      snapshotCreateOK(),
 		}
+	}
+	if hhRepo.FindByIDFn == nil {
+		hhRepo.FindByIDFn = salaryModeHousehold()
 	}
 	return NewSummaryService(sumRepo, hhRepo, expRepo, billRepo, snapRepo)
 }
@@ -423,7 +432,8 @@ func TestSummaryService_Generate_NotMember(t *testing.T) {
 
 func TestSummaryService_Generate_NoSalary(t *testing.T) {
 	hhRepo := &mock.HouseholdRepository{
-		GetMemberFn: memberOK(),
+		GetMemberFn:   memberOK(),
+		FindByIDFn:    salaryModeHousehold(),
 		ListMembersFn: func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
 			return []domain.HouseholdMember{
 				{UserID: "u1", SalaryCents: 0},
@@ -721,7 +731,8 @@ func TestSummaryService_Generate_BillRepoError(t *testing.T) {
 
 func TestSummaryService_Generate_MemberListError(t *testing.T) {
 	hhRepo := &mock.HouseholdRepository{
-		GetMemberFn: memberOK(),
+		GetMemberFn:   memberOK(),
+		FindByIDFn:    salaryModeHousehold(),
 		ListMembersFn: func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
 			return nil, errors.New("db error")
 		},
@@ -764,7 +775,7 @@ func TestSummaryService_Dashboard_NoSalaryGraceful(t *testing.T) {
 			}, nil
 		},
 		FindByIDFn: func(ctx context.Context, id string) (*domain.Household, error) {
-			return &domain.Household{ID: id, Name: "Casa"}, nil
+			return &domain.Household{ID: id, Name: "Casa", SplitMode: "salary"}, nil
 		},
 	}
 	expRepo := &mock.ExpenseRepository{
@@ -797,7 +808,7 @@ func TestSummaryService_Dashboard_Success(t *testing.T) {
 		GetMemberFn:   memberOK(),
 		ListMembersFn: twoMembers(),
 		FindByIDFn: func(ctx context.Context, id string) (*domain.Household, error) {
-			return &domain.Household{ID: id, Name: "Casa"}, nil
+			return &domain.Household{ID: id, Name: "Casa", SplitMode: "salary"}, nil
 		},
 	}
 	expRepo := &mock.ExpenseRepository{
@@ -1211,7 +1222,7 @@ func TestSummaryService_Dashboard_BalanceFields(t *testing.T) {
 		GetMemberFn:   memberOK(),
 		ListMembersFn: twoMembers(),
 		FindByIDFn: func(ctx context.Context, id string) (*domain.Household, error) {
-			return &domain.Household{ID: id, Name: "Casa"}, nil
+			return &domain.Household{ID: id, Name: "Casa", SplitMode: "salary"}, nil
 		},
 	}
 	expRepo := &mock.ExpenseRepository{
@@ -1410,5 +1421,128 @@ func TestSummaryService_GetUserDetail_PersonalItems(t *testing.T) {
 	// Bob paid only Remédio = 3500
 	if detail.TotalPaidCents != 3500 {
 		t.Errorf("total paid: expected 3500, got %d", detail.TotalPaidCents)
+	}
+}
+
+// --- Percentage mode tests ---
+
+func percentageModeHousehold() func(ctx context.Context, id string) (*domain.Household, error) {
+	return func(ctx context.Context, id string) (*domain.Household, error) {
+		return &domain.Household{ID: id, Name: "Casa", SplitMode: "percentage"}, nil
+	}
+}
+
+func twoMembersWithPercentage() func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
+	return func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
+		return []domain.HouseholdMember{
+			{UserID: "u1", UserName: "Alice", SplitPercentage: 6000},
+			{UserID: "u2", UserName: "Bob", SplitPercentage: 4000},
+		}, nil
+	}
+}
+
+func TestSummaryService_Generate_PercentageMode(t *testing.T) {
+	// Alice 60%, Bob 40%. Shared expense: R$100.
+	// Alice pays R$60, Bob pays R$40.
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn:   memberOK(),
+		FindByIDFn:    percentageModeHousehold(),
+		ListMembersFn: twoMembersWithPercentage(),
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 10000, IsShared: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
+	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
+	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	if len(resp.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(resp.Items))
+	}
+
+	alice := resp.Items[0]
+	bob := resp.Items[1]
+
+	if alice.Proportion != 0.6 {
+		t.Errorf("Alice proportion: expected 0.6, got %f", alice.Proportion)
+	}
+	if bob.Proportion != 0.4 {
+		t.Errorf("Bob proportion: expected 0.4, got %f", bob.Proportion)
+	}
+	if alice.TotalSharedCents != 6000 {
+		t.Errorf("Alice shared: expected 6000, got %d", alice.TotalSharedCents)
+	}
+	if bob.TotalSharedCents != 4000 {
+		t.Errorf("Bob shared: expected 4000, got %d", bob.TotalSharedCents)
+	}
+	if len(resp.Warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", resp.Warnings)
+	}
+}
+
+func TestSummaryService_Generate_PercentageMode_SumNot100(t *testing.T) {
+	// Alice 60%, Bob 30% → total 90%, should generate warning
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn: memberOK(),
+		FindByIDFn:  percentageModeHousehold(),
+		ListMembersFn: func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
+			return []domain.HouseholdMember{
+				{UserID: "u1", UserName: "Alice", SplitPercentage: 6000},
+				{UserID: "u2", UserName: "Bob", SplitPercentage: 3000},
+			}, nil
+		},
+	}
+	expRepo := &mock.ExpenseRepository{
+		ListByHouseholdFn: func(ctx context.Context, hID string, f domain.ExpenseFilter) ([]domain.Expense, error) {
+			return []domain.Expense{
+				{ID: "e1", AmountCents: 10000, IsShared: true, PaidBy: "u1"},
+			}, nil
+		},
+	}
+	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
+	sumRepo := &mock.SummaryRepository{UpsertFn: summaryUpsertOK()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, sumRepo, nil)
+	resp, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	if len(resp.Warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(resp.Warnings))
+	}
+	if resp.Items[0].Proportion != 0.6 {
+		t.Errorf("Alice proportion: expected 0.6, got %f", resp.Items[0].Proportion)
+	}
+}
+
+func TestSummaryService_Generate_PercentageMode_ZeroPercentages(t *testing.T) {
+	// All percentages are 0 → should return ErrNoMembersWithSalary
+	hhRepo := &mock.HouseholdRepository{
+		GetMemberFn: memberOK(),
+		FindByIDFn:  percentageModeHousehold(),
+		ListMembersFn: func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
+			return []domain.HouseholdMember{
+				{UserID: "u1", UserName: "Alice", SplitPercentage: 0},
+				{UserID: "u2", UserName: "Bob", SplitPercentage: 0},
+			}, nil
+		},
+	}
+	expRepo := &mock.ExpenseRepository{ListByHouseholdFn: noExpenses()}
+	billRepo := &mock.FixedBillRepository{ListByHouseholdFn: noBills()}
+
+	svc := makeSummaryService(hhRepo, expRepo, billRepo, nil, nil)
+	_, err := svc.Generate(context.Background(), "hh-1", 2024, 1, "u1")
+	if !errors.Is(err, domain.ErrNoMembersWithSalary) {
+		t.Errorf("expected ErrNoMembersWithSalary, got %v", err)
 	}
 }

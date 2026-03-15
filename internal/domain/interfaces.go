@@ -52,6 +52,8 @@ type HouseholdRepository interface {
 	AddMember(ctx context.Context, householdID, userID, role string) error
 	RemoveMember(ctx context.Context, householdID, userID string) error
 	UpdateMemberSalary(ctx context.Context, householdID, userID string, salaryCents int64) error
+	UpdateSplitMode(ctx context.Context, householdID, splitMode string) error
+	UpdateMemberSplitPercentage(ctx context.Context, householdID, userID string, percentage int) error
 	ListMembers(ctx context.Context, householdID string) ([]HouseholdMember, error)
 	GetMember(ctx context.Context, householdID, userID string) (*HouseholdMember, error)
 }
@@ -65,6 +67,8 @@ type HouseholdService interface {
 	Join(ctx context.Context, inviteCode, userID string) (*Household, error)
 	ListMembers(ctx context.Context, householdID, userID string) ([]HouseholdMember, error)
 	UpdateMemberSalary(ctx context.Context, householdID, memberID string, salaryCents int64, userID string) error
+	UpdateSplitMode(ctx context.Context, householdID, splitMode, userID string) error
+	UpdateMemberSplitPercentage(ctx context.Context, householdID, memberID string, percentage int, userID string) error
 	RemoveMember(ctx context.Context, householdID, memberID, userID string) error
 }
 

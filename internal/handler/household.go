@@ -181,6 +181,51 @@ func (h *HouseholdHandler) UpdateMemberSalary(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+func (h *HouseholdHandler) UpdateSplitMode(c echo.Context) error {
+	householdID := c.Param("id")
+
+	var input domain.UpdateSplitModeInput
+	if err := c.Bind(&input); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
+	if err := h.svc.UpdateSplitMode(c.Request().Context(), householdID, input.SplitMode, userID); err != nil {
+		if errors.Is(err, domain.ErrInvalidSplitMode) {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		return householdError(err)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *HouseholdHandler) UpdateMemberSplitPercentage(c echo.Context) error {
+	householdID := c.Param("id")
+	memberID := c.Param("memberId")
+
+	var input domain.UpdateSplitPercentageInput
+	if err := c.Bind(&input); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	userID, err := getUserID(c)
+	if err != nil {
+		return err
+	}
+	if err := h.svc.UpdateMemberSplitPercentage(c.Request().Context(), householdID, memberID, input.SplitPercentage, userID); err != nil {
+		if errors.Is(err, domain.ErrInvalidSplitPercentage) {
+			return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+		}
+		return householdError(err)
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
 func (h *HouseholdHandler) RemoveMember(c echo.Context) error {
 	householdID := c.Param("id")
 	memberID := c.Param("memberId")
@@ -206,6 +251,8 @@ func RegisterHouseholdRoutes(e *echo.Echo, h *HouseholdHandler, authMiddleware e
 	g.DELETE("/:id", h.Delete)
 	g.GET("/:id/members", h.ListMembers)
 	g.PUT("/:id/members/:memberId/salary", h.UpdateMemberSalary)
+	g.PUT("/:id/members/:memberId/percentage", h.UpdateMemberSplitPercentage)
+	g.PUT("/:id/split-mode", h.UpdateSplitMode)
 	g.DELETE("/:id/members/:memberId", h.RemoveMember)
 }
 
@@ -229,17 +276,19 @@ func toHouseholdResponse(h *domain.Household) domain.HouseholdResponse {
 		ID:         h.ID,
 		Name:       h.Name,
 		InviteCode: h.InviteCode,
+		SplitMode:  h.SplitMode,
 		CreatedAt:  h.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }
 
 func toMemberResponse(m *domain.HouseholdMember) domain.MemberResponse {
 	return domain.MemberResponse{
-		UserID:      m.UserID,
-		UserName:    m.UserName,
-		UserEmail:   m.UserEmail,
-		SalaryCents: m.SalaryCents,
-		Role:        m.Role,
-		JoinedAt:    m.JoinedAt.Format("2006-01-02T15:04:05Z"),
+		UserID:          m.UserID,
+		UserName:        m.UserName,
+		UserEmail:       m.UserEmail,
+		SalaryCents:     m.SalaryCents,
+		SplitPercentage: m.SplitPercentage,
+		Role:            m.Role,
+		JoinedAt:        m.JoinedAt.Format("2006-01-02T15:04:05Z"),
 	}
 }

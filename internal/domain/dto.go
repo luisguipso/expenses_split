@@ -89,20 +89,30 @@ type UpdateSalaryInput struct {
 	SalaryCents int64 `json:"salary_cents"`
 }
 
+type UpdateSplitModeInput struct {
+	SplitMode string `json:"split_mode"`
+}
+
+type UpdateSplitPercentageInput struct {
+	SplitPercentage int `json:"split_percentage"`
+}
+
 type HouseholdResponse struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	InviteCode string `json:"invite_code,omitempty"`
+	SplitMode  string `json:"split_mode"`
 	CreatedAt  string `json:"created_at"`
 }
 
 type MemberResponse struct {
-	UserID      string `json:"user_id"`
-	UserName    string `json:"user_name"`
-	UserEmail   string `json:"user_email"`
-	SalaryCents int64  `json:"salary_cents"`
-	Role        string `json:"role"`
-	JoinedAt    string `json:"joined_at"`
+	UserID          string `json:"user_id"`
+	UserName        string `json:"user_name"`
+	UserEmail       string `json:"user_email"`
+	SalaryCents     int64  `json:"salary_cents"`
+	SplitPercentage int    `json:"split_percentage"`
+	Role            string `json:"role"`
+	JoinedAt        string `json:"joined_at"`
 }
 
 // Category DTOs
@@ -260,6 +270,7 @@ type SummaryResponse struct {
 	Items            []SummaryItemResponse       `json:"items"`
 	Settlements      []SettlementTransfer        `json:"settlements"`
 	FixedBills       []FixedBillSnapshotResponse `json:"fixed_bills"`
+	Warnings         []string                    `json:"warnings,omitempty"`
 }
 
 type SummaryDetailItem struct {
