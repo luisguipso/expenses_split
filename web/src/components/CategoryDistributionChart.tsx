@@ -27,7 +27,7 @@ function formatCurrency(cents: number): string {
 }
 
 function renderLabel(props: { x?: number; y?: number; width?: number; value?: number; index?: number }, total: number) {
-  const { x = 0, y = 0, width = 0, value = 0, index = 0 } = props;
+  const { x = 0, y = 0, width = 0, value = 0 } = props;
   const pct = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
   return (
     <text
