@@ -20,7 +20,7 @@ function formatPercentage(basisPoints: number): string {
 
 export default function Members() {
   const { user } = useAuth();
-  const { activeHousehold, households, selectHousehold } = useHousehold();
+  const { activeHousehold, selectHousehold } = useHousehold();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
