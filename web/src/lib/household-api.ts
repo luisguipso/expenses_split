@@ -28,6 +28,16 @@ export const householdApi = {
       salary_cents: salaryCents,
     }),
 
+  updateSplitMode: (householdId: string, splitMode: string) =>
+    api.put(`/households/${householdId}/split-mode`, {
+      split_mode: splitMode,
+    }),
+
+  updateSplitPercentage: (householdId: string, memberId: string, percentage: number) =>
+    api.put(`/households/${householdId}/members/${memberId}/percentage`, {
+      split_percentage: percentage,
+    }),
+
   removeMember: (householdId: string, memberId: string) =>
     api.delete(`/households/${householdId}/members/${memberId}`),
 };

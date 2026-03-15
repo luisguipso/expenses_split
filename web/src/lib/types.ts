@@ -2,6 +2,7 @@ export interface Household {
   id: string;
   name: string;
   invite_code?: string;
+  split_mode: string;
   created_at: string;
 }
 
@@ -10,6 +11,7 @@ export interface Member {
   user_name: string;
   user_email: string;
   salary_cents: number;
+  split_percentage: number;
   role: string;
   joined_at: string;
 }

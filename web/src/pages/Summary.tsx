@@ -46,7 +46,7 @@ export default function Summary() {
           ? (err as { response?: { data?: { error?: string } } }).response?.data?.error
           : undefined;
       if (msg === 'no members have salary configured') {
-        setError('Nenhum morador tem salário configurado. Defina os salários na página de Moradores.');
+        setError('Nenhum morador tem salário ou percentual configurado. Defina os valores na página de Moradores.');
       } else {
         setError('Erro ao gerar resumo mensal.');
       }
@@ -116,6 +116,14 @@ export default function Summary() {
 
       {error && (
         <ErrorAlert message={error} onDismiss={() => setError('')} />
+      )}
+
+      {summary?.warnings && summary.warnings.length > 0 && (
+        <div className="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3">
+          {summary.warnings.map((w, i) => (
+            <p key={i} className="text-sm text-yellow-800">⚠️ {w}</p>
+          ))}
+        </div>
       )}
 
       {loading ? (
@@ -268,8 +276,8 @@ export default function Summary() {
                     <span className="text-sm text-gray-500">{(item.proportion * 100).toFixed(1)}%</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Salário</span>
-                    <span className="text-gray-700">{formatCurrency(item.salary_cents)}</span>
+                    <span className="text-gray-500">{activeHousehold?.split_mode === 'percentage' ? 'Percentual' : 'Salário'}</span>
+                    <span className="text-gray-700">{activeHousehold?.split_mode === 'percentage' ? `${(item.proportion * 100).toFixed(2)}%` : formatCurrency(item.salary_cents)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Compartilhado</span>
@@ -304,7 +312,7 @@ export default function Summary() {
                     Morador
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
-                    Salário
+                    {activeHousehold?.split_mode === 'percentage' ? 'Percentual' : 'Salário'}
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">
                     Proporção
@@ -337,7 +345,9 @@ export default function Summary() {
                       {item.user_name}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-500">
-                      {formatCurrency(item.salary_cents)}
+                      {activeHousehold?.split_mode === 'percentage'
+                        ? `${(item.proportion * 100).toFixed(2)}%`
+                        : formatCurrency(item.salary_cents)}
                     </td>
                     <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-500">
                       {(item.proportion * 100).toFixed(1)}%

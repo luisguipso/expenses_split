@@ -104,17 +104,19 @@ func (m *HealthChecker) Ping(ctx context.Context) error {
 // HouseholdRepository
 
 type HouseholdRepository struct {
-	CreateFn             func(ctx context.Context, household *domain.Household, adminUserID string) error
-	FindByIDFn           func(ctx context.Context, id string) (*domain.Household, error)
-	FindByInviteCodeFn   func(ctx context.Context, code string) (*domain.Household, error)
-	ListByUserFn         func(ctx context.Context, userID string) ([]domain.Household, error)
-	UpdateFn             func(ctx context.Context, household *domain.Household) error
-	DeleteFn             func(ctx context.Context, id string) error
-	AddMemberFn          func(ctx context.Context, householdID, userID, role string) error
-	RemoveMemberFn       func(ctx context.Context, householdID, userID string) error
-	UpdateMemberSalaryFn func(ctx context.Context, householdID, userID string, salaryCents int64) error
-	ListMembersFn        func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error)
-	GetMemberFn          func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error)
+	CreateFn                      func(ctx context.Context, household *domain.Household, adminUserID string) error
+	FindByIDFn                    func(ctx context.Context, id string) (*domain.Household, error)
+	FindByInviteCodeFn            func(ctx context.Context, code string) (*domain.Household, error)
+	ListByUserFn                  func(ctx context.Context, userID string) ([]domain.Household, error)
+	UpdateFn                      func(ctx context.Context, household *domain.Household) error
+	DeleteFn                      func(ctx context.Context, id string) error
+	AddMemberFn                   func(ctx context.Context, householdID, userID, role string) error
+	RemoveMemberFn                func(ctx context.Context, householdID, userID string) error
+	UpdateMemberSalaryFn          func(ctx context.Context, householdID, userID string, salaryCents int64) error
+	UpdateSplitModeFn             func(ctx context.Context, householdID, splitMode string) error
+	UpdateMemberSplitPercentageFn func(ctx context.Context, householdID, userID string, percentage int) error
+	ListMembersFn                 func(ctx context.Context, householdID string) ([]domain.HouseholdMember, error)
+	GetMemberFn                   func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error)
 }
 
 func (m *HouseholdRepository) Create(ctx context.Context, h *domain.Household, adminUserID string) error {
@@ -144,6 +146,12 @@ func (m *HouseholdRepository) RemoveMember(ctx context.Context, householdID, use
 func (m *HouseholdRepository) UpdateMemberSalary(ctx context.Context, householdID, userID string, salaryCents int64) error {
 	return m.UpdateMemberSalaryFn(ctx, householdID, userID, salaryCents)
 }
+func (m *HouseholdRepository) UpdateSplitMode(ctx context.Context, householdID, splitMode string) error {
+	return m.UpdateSplitModeFn(ctx, householdID, splitMode)
+}
+func (m *HouseholdRepository) UpdateMemberSplitPercentage(ctx context.Context, householdID, userID string, percentage int) error {
+	return m.UpdateMemberSplitPercentageFn(ctx, householdID, userID, percentage)
+}
 func (m *HouseholdRepository) ListMembers(ctx context.Context, householdID string) ([]domain.HouseholdMember, error) {
 	return m.ListMembersFn(ctx, householdID)
 }
@@ -154,15 +162,17 @@ func (m *HouseholdRepository) GetMember(ctx context.Context, householdID, userID
 // HouseholdService
 
 type HouseholdService struct {
-	CreateFn             func(ctx context.Context, input domain.CreateHouseholdInput, userID string) (*domain.Household, error)
-	GetByIDFn            func(ctx context.Context, id, userID string) (*domain.Household, error)
-	ListByUserFn         func(ctx context.Context, userID string) ([]domain.Household, error)
-	UpdateFn             func(ctx context.Context, id string, input domain.UpdateHouseholdInput, userID string) (*domain.Household, error)
-	DeleteFn             func(ctx context.Context, id, userID string) error
-	JoinFn               func(ctx context.Context, inviteCode, userID string) (*domain.Household, error)
-	ListMembersFn        func(ctx context.Context, householdID, userID string) ([]domain.HouseholdMember, error)
-	UpdateMemberSalaryFn func(ctx context.Context, householdID, memberID string, salaryCents int64, userID string) error
-	RemoveMemberFn       func(ctx context.Context, householdID, memberID, userID string) error
+	CreateFn                      func(ctx context.Context, input domain.CreateHouseholdInput, userID string) (*domain.Household, error)
+	GetByIDFn                     func(ctx context.Context, id, userID string) (*domain.Household, error)
+	ListByUserFn                  func(ctx context.Context, userID string) ([]domain.Household, error)
+	UpdateFn                      func(ctx context.Context, id string, input domain.UpdateHouseholdInput, userID string) (*domain.Household, error)
+	DeleteFn                      func(ctx context.Context, id, userID string) error
+	JoinFn                        func(ctx context.Context, inviteCode, userID string) (*domain.Household, error)
+	ListMembersFn                 func(ctx context.Context, householdID, userID string) ([]domain.HouseholdMember, error)
+	UpdateMemberSalaryFn          func(ctx context.Context, householdID, memberID string, salaryCents int64, userID string) error
+	UpdateSplitModeFn             func(ctx context.Context, householdID, splitMode, userID string) error
+	UpdateMemberSplitPercentageFn func(ctx context.Context, householdID, memberID string, percentage int, userID string) error
+	RemoveMemberFn                func(ctx context.Context, householdID, memberID, userID string) error
 }
 
 func (m *HouseholdService) Create(ctx context.Context, input domain.CreateHouseholdInput, userID string) (*domain.Household, error) {
@@ -188,6 +198,12 @@ func (m *HouseholdService) ListMembers(ctx context.Context, householdID, userID 
 }
 func (m *HouseholdService) UpdateMemberSalary(ctx context.Context, householdID, memberID string, salaryCents int64, userID string) error {
 	return m.UpdateMemberSalaryFn(ctx, householdID, memberID, salaryCents, userID)
+}
+func (m *HouseholdService) UpdateSplitMode(ctx context.Context, householdID, splitMode, userID string) error {
+	return m.UpdateSplitModeFn(ctx, householdID, splitMode, userID)
+}
+func (m *HouseholdService) UpdateMemberSplitPercentage(ctx context.Context, householdID, memberID string, percentage int, userID string) error {
+	return m.UpdateMemberSplitPercentageFn(ctx, householdID, memberID, percentage, userID)
 }
 func (m *HouseholdService) RemoveMember(ctx context.Context, householdID, memberID, userID string) error {
 	return m.RemoveMemberFn(ctx, householdID, memberID, userID)

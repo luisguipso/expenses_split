@@ -141,6 +141,44 @@ func (s *householdService) RemoveMember(ctx context.Context, householdID, member
 	return s.repo.RemoveMember(ctx, householdID, memberID)
 }
 
+func (s *householdService) UpdateSplitMode(ctx context.Context, householdID, splitMode, userID string) error {
+	if splitMode != "salary" && splitMode != "percentage" {
+		return domain.ErrInvalidSplitMode
+	}
+
+	member, err := s.repo.GetMember(ctx, householdID, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotMember) {
+			return domain.ErrForbidden
+		}
+		return err
+	}
+	if member.Role != "admin" {
+		return domain.ErrForbidden
+	}
+
+	return s.repo.UpdateSplitMode(ctx, householdID, splitMode)
+}
+
+func (s *householdService) UpdateMemberSplitPercentage(ctx context.Context, householdID, memberID string, percentage int, userID string) error {
+	if percentage < 0 || percentage > 10000 {
+		return domain.ErrInvalidSplitPercentage
+	}
+
+	member, err := s.repo.GetMember(ctx, householdID, userID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotMember) {
+			return domain.ErrForbidden
+		}
+		return err
+	}
+	if member.Role != "admin" && userID != memberID {
+		return domain.ErrForbidden
+	}
+
+	return s.repo.UpdateMemberSplitPercentage(ctx, householdID, memberID, percentage)
+}
+
 func generateInviteCode() (string, error) {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {

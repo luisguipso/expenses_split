@@ -40,7 +40,7 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		return nil, err
 	}
 
-	breakdown, totalShared, bills, err := s.calculate(ctx, householdID, year, month)
+	breakdown, totalShared, bills, warnings, err := s.calculate(ctx, householdID, year, month)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +99,7 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		Items:            breakdown,
 		Settlements:      minimizeTransfers(breakdown),
 		FixedBills:       fixedBillResponses,
+		Warnings:         warnings,
 	}, nil
 }
 
@@ -148,7 +149,7 @@ func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID s
 		}
 	}
 
-	breakdown, _, _, err := s.calculate(ctx, householdID, year, month)
+	breakdown, _, _, _, err := s.calculate(ctx, householdID, year, month)
 	if err != nil && !errors.Is(err, domain.ErrNoMembersWithSalary) {
 		return nil, err
 	}
@@ -307,37 +308,66 @@ func (s *summaryService) resolveFixedBills(ctx context.Context, householdID stri
 }
 
 // calculate computes the proportional split for a given month.
-// Returns per-member breakdown and total shared amount.
-func (s *summaryService) calculate(ctx context.Context, householdID string, year, month int) ([]domain.SummaryItemResponse, int64, []resolvedBill, error) {
-	// 1. Get members with salaries
+// Returns per-member breakdown, total shared amount, resolved bills, and warnings.
+func (s *summaryService) calculate(ctx context.Context, householdID string, year, month int) ([]domain.SummaryItemResponse, int64, []resolvedBill, []string, error) {
+	// 1. Get household to check split mode
+	household, err := s.householdRepo.FindByID(ctx, householdID)
+	if err != nil {
+		return nil, 0, nil, nil, fmt.Errorf("find household: %w", err)
+	}
+
+	// 2. Get members with salaries/percentages
 	members, err := s.householdRepo.ListMembers(ctx, householdID)
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("list members: %w", err)
+		return nil, 0, nil, nil, fmt.Errorf("list members: %w", err)
 	}
 
-	var totalSalary int64
-	for _, m := range members {
-		totalSalary += m.SalaryCents
-	}
-	if totalSalary == 0 {
-		return nil, 0, nil, domain.ErrNoMembersWithSalary
+	var warnings []string
+
+	// 3. Determine proportions based on split mode
+	proportions := make([]float64, len(members))
+	if household.SplitMode == "percentage" {
+		var totalPercentage int
+		for _, m := range members {
+			totalPercentage += m.SplitPercentage
+		}
+		if totalPercentage == 0 {
+			return nil, 0, nil, nil, domain.ErrNoMembersWithSalary
+		}
+		if totalPercentage != 10000 {
+			warnings = append(warnings, fmt.Sprintf("A soma dos percentuais dos moradores é %.2f%%. O total deve ser 100%%.", float64(totalPercentage)/100.0))
+		}
+		for i, m := range members {
+			proportions[i] = float64(m.SplitPercentage) / 10000.0
+		}
+	} else {
+		var totalSalary int64
+		for _, m := range members {
+			totalSalary += m.SalaryCents
+		}
+		if totalSalary == 0 {
+			return nil, 0, nil, nil, domain.ErrNoMembersWithSalary
+		}
+		for i, m := range members {
+			proportions[i] = float64(m.SalaryCents) / float64(totalSalary)
+		}
 	}
 
-	// 2. Get expenses for this month
+	// 4. Get expenses for this month
 	expenses, err := s.expenseRepo.ListByHousehold(ctx, householdID, domain.ExpenseFilter{
 		Year: year, Month: month,
 	})
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("list expenses: %w", err)
+		return nil, 0, nil, nil, fmt.Errorf("list expenses: %w", err)
 	}
 
-	// 3. Resolve fixed bills (snapshot or live)
+	// 5. Resolve fixed bills (snapshot or live)
 	bills, err := s.resolveFixedBills(ctx, householdID, year, month)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, nil, err
 	}
 
-	// 4. Calculate totals
+	// 6. Calculate totals
 	var totalShared int64
 	personalByUser := make(map[string]int64)
 	paidByUser := make(map[string]int64)
@@ -366,12 +396,12 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		}
 	}
 
-	// 5. Calculate proportional split
+	// 7. Calculate proportional split
 	breakdown := make([]domain.SummaryItemResponse, len(members))
 	var allocatedShared int64
 
 	for i, m := range members {
-		proportion := float64(m.SalaryCents) / float64(totalSalary)
+		proportion := proportions[i]
 		sharedDue := int64(math.Round(float64(totalShared) * proportion))
 
 		// For the last member, assign remainder to avoid rounding drift
@@ -397,7 +427,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		}
 	}
 
-	return breakdown, totalShared, bills, nil
+	return breakdown, totalShared, bills, warnings, nil
 }
 
 // minimizeTransfers computes the minimum number of transfers to settle all balances.
@@ -474,22 +504,41 @@ func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, 
 		return nil, fmt.Errorf("list members: %w", err)
 	}
 
-	var totalSalary int64
+	household, err := s.householdRepo.FindByID(ctx, householdID)
+	if err != nil {
+		return nil, fmt.Errorf("find household: %w", err)
+	}
+
 	var targetMember *domain.HouseholdMember
 	for i, m := range members {
-		totalSalary += m.SalaryCents
 		if m.UserID == targetUserID {
 			targetMember = &members[i]
 		}
-	}
-	if totalSalary == 0 {
-		return nil, domain.ErrNoMembersWithSalary
 	}
 	if targetMember == nil {
 		return nil, domain.ErrNotMember
 	}
 
-	proportion := float64(targetMember.SalaryCents) / float64(totalSalary)
+	var proportion float64
+	if household.SplitMode == "percentage" {
+		var totalPercentage int
+		for _, m := range members {
+			totalPercentage += m.SplitPercentage
+		}
+		if totalPercentage == 0 {
+			return nil, domain.ErrNoMembersWithSalary
+		}
+		proportion = float64(targetMember.SplitPercentage) / 10000.0
+	} else {
+		var totalSalary int64
+		for _, m := range members {
+			totalSalary += m.SalaryCents
+		}
+		if totalSalary == 0 {
+			return nil, domain.ErrNoMembersWithSalary
+		}
+		proportion = float64(targetMember.SalaryCents) / float64(totalSalary)
+	}
 
 	// Build name lookup for paid_by
 	nameByID := make(map[string]string, len(members))

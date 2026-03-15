@@ -2,12 +2,14 @@ import { ReactNode, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { useHousehold } from '../lib/household';
+import { useSplitWarning } from '../hooks/useSplitWarning';
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const { activeHousehold, households, selectHousehold } = useHousehold();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { showWarning, percentageSum } = useSplitWarning();
 
   const navItems = [
     { path: '/', label: 'Resumo' },
@@ -137,6 +139,25 @@ export default function Layout({ children }: { children: ReactNode }) {
           </div>
         )}
       </header>
+      {showWarning && (
+        <div className="bg-yellow-50 border-b border-yellow-200">
+          <div className="mx-auto max-w-7xl px-4 py-2 text-sm text-yellow-800 flex items-center gap-2">
+            <span>⚠️</span>
+            <span>
+              A soma dos percentuais dos moradores é{' '}
+              <strong>{(percentageSum / 100).toFixed(2)}%</strong>. O total deve
+              ser 100%.{' '}
+              <Link
+                to="/membros"
+                className="font-medium underline hover:text-yellow-900"
+              >
+                Ajuste na página de Moradores
+              </Link>
+              .
+            </span>
+          </div>
+        </div>
+      )}
       <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8">{children}</main>
     </div>
   );

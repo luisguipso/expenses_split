@@ -327,3 +327,118 @@ func TestHouseholdService_ListMembers_NotMember(t *testing.T) {
 		t.Errorf("expected ErrForbidden, got %v", err)
 	}
 }
+
+// --- UpdateSplitMode tests ---
+
+func TestHouseholdService_UpdateSplitMode_Admin(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	repo.GetMemberFn = func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error) {
+		return &domain.HouseholdMember{Role: "admin", UserID: "admin-1"}, nil
+	}
+	repo.UpdateSplitModeFn = func(ctx context.Context, householdID, splitMode string) error {
+		if splitMode != "percentage" {
+			t.Errorf("expected percentage, got %s", splitMode)
+		}
+		return nil
+	}
+	svc := NewHouseholdService(repo)
+
+	err := svc.UpdateSplitMode(context.Background(), "hh-1", "percentage", "admin-1")
+	if err != nil {
+		t.Fatalf("UpdateSplitMode failed: %v", err)
+	}
+}
+
+func TestHouseholdService_UpdateSplitMode_NotAdmin(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	repo.GetMemberFn = func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error) {
+		return &domain.HouseholdMember{Role: "member", UserID: "user-1"}, nil
+	}
+	svc := NewHouseholdService(repo)
+
+	err := svc.UpdateSplitMode(context.Background(), "hh-1", "percentage", "user-1")
+	if !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestHouseholdService_UpdateSplitMode_InvalidMode(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	svc := NewHouseholdService(repo)
+
+	err := svc.UpdateSplitMode(context.Background(), "hh-1", "invalid", "admin-1")
+	if !errors.Is(err, domain.ErrInvalidSplitMode) {
+		t.Errorf("expected ErrInvalidSplitMode, got %v", err)
+	}
+}
+
+// --- UpdateMemberSplitPercentage tests ---
+
+func TestHouseholdService_UpdateMemberSplitPercentage_Admin(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	repo.GetMemberFn = func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error) {
+		return &domain.HouseholdMember{Role: "admin", UserID: "admin-1"}, nil
+	}
+	repo.UpdateMemberSplitPercentageFn = func(ctx context.Context, householdID, userID string, percentage int) error {
+		if percentage != 6000 {
+			t.Errorf("expected 6000, got %d", percentage)
+		}
+		return nil
+	}
+	svc := NewHouseholdService(repo)
+
+	err := svc.UpdateMemberSplitPercentage(context.Background(), "hh-1", "user-2", 6000, "admin-1")
+	if err != nil {
+		t.Fatalf("UpdateMemberSplitPercentage failed: %v", err)
+	}
+}
+
+func TestHouseholdService_UpdateMemberSplitPercentage_Self(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	repo.GetMemberFn = func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error) {
+		return &domain.HouseholdMember{Role: "member", UserID: userID}, nil
+	}
+	repo.UpdateMemberSplitPercentageFn = func(ctx context.Context, householdID, userID string, percentage int) error {
+		return nil
+	}
+	svc := NewHouseholdService(repo)
+
+	err := svc.UpdateMemberSplitPercentage(context.Background(), "hh-1", "user-1", 5000, "user-1")
+	if err != nil {
+		t.Fatalf("UpdateMemberSplitPercentage (self) failed: %v", err)
+	}
+}
+
+func TestHouseholdService_UpdateMemberSplitPercentage_Forbidden(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	repo.GetMemberFn = func(ctx context.Context, householdID, userID string) (*domain.HouseholdMember, error) {
+		return &domain.HouseholdMember{Role: "member", UserID: "user-1"}, nil
+	}
+	svc := NewHouseholdService(repo)
+
+	err := svc.UpdateMemberSplitPercentage(context.Background(), "hh-1", "user-2", 5000, "user-1")
+	if !errors.Is(err, domain.ErrForbidden) {
+		t.Errorf("expected ErrForbidden, got %v", err)
+	}
+}
+
+func TestHouseholdService_UpdateMemberSplitPercentage_InvalidRange(t *testing.T) {
+	repo := newMockHouseholdRepo()
+	svc := NewHouseholdService(repo)
+
+	tests := []struct {
+		name       string
+		percentage int
+	}{
+		{"negative", -1},
+		{"over 10000", 10001},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.UpdateMemberSplitPercentage(context.Background(), "hh-1", "user-1", tt.percentage, "user-1")
+			if !errors.Is(err, domain.ErrInvalidSplitPercentage) {
+				t.Errorf("expected ErrInvalidSplitPercentage, got %v", err)
+			}
+		})
+	}
+}
