@@ -26,4 +26,6 @@ var (
 	ErrResetTokenInvalid         = errors.New("invalid password reset token")
 	ErrResetTokenExpired         = errors.New("password reset token expired")
 	ErrPasswordSameAsOld         = errors.New("new password must differ from current password")
+	ErrUnsupportedBillFormat     = errors.New("unsupported bill format")
+	ErrBillParseError            = errors.New("failed to parse bill")
 )

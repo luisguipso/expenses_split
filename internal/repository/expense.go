@@ -34,6 +34,31 @@ func (r *expenseRepository) Create(ctx context.Context, e *domain.Expense) error
 	return nil
 }
 
+func (r *expenseRepository) CreateBatch(ctx context.Context, expenses []*domain.Expense) error {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("expense batch create begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	query := `
+		INSERT INTO expenses (household_id, category_id, description, amount_cents, expense_date, is_shared, paid_by, assigned_to)
+		VALUES ($1, nullif($2,'')::uuid, $3, $4, $5, $6, $7, nullif($8,'')::uuid)
+		RETURNING id, created_at, updated_at`
+
+	for _, e := range expenses {
+		err := tx.QueryRow(ctx, query,
+			e.HouseholdID, e.CategoryID, e.Description, e.AmountCents,
+			e.ExpenseDate, e.IsShared, e.PaidBy, e.AssignedTo,
+		).Scan(&e.ID, &e.CreatedAt, &e.UpdatedAt)
+		if err != nil {
+			return fmt.Errorf("expense batch create: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *expenseRepository) FindByID(ctx context.Context, id string) (*domain.Expense, error) {
 	query := `
 		SELECT e.id, e.household_id, COALESCE(e.category_id::text,''), COALESCE(c.name,''),
