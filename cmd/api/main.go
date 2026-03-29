@@ -13,6 +13,8 @@ import (
 	"github.com/lguilherme/contas/internal/handler"
 	appMiddleware "github.com/lguilherme/contas/internal/middleware"
 	"github.com/lguilherme/contas/internal/migrate"
+	"github.com/lguilherme/contas/internal/parser"
+	"github.com/lguilherme/contas/internal/parser/nubank"
 	"github.com/lguilherme/contas/internal/repository"
 	"github.com/lguilherme/contas/internal/service"
 )
@@ -60,6 +62,9 @@ func main() {
 	snapshotService := service.NewFixedBillSnapshotService(snapshotRepo, householdRepo)
 	expenseService := service.NewExpenseService(expenseRepo, householdRepo)
 	summaryService := service.NewSummaryService(summaryRepo, householdRepo, expenseRepo, fixedBillRepo, snapshotRepo)
+	nubankParser := nubank.NewParser()
+	parserRegistry := parser.NewRegistry(nubankParser)
+	importService := service.NewImportService(parserRegistry, householdRepo, categoryRepo, expenseRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService)
@@ -69,6 +74,7 @@ func main() {
 	snapshotHandler := handler.NewFixedBillSnapshotHandler(snapshotService)
 	expenseHandler := handler.NewExpenseHandler(expenseService)
 	summaryHandler := handler.NewSummaryHandler(summaryService)
+	importHandler := handler.NewImportHandler(importService)
 	authMW := appMiddleware.JWTAuth(tokenService)
 
 	// Router
@@ -91,6 +97,7 @@ func main() {
 	handler.RegisterFixedBillRoutes(e, fixedBillHandler, authMW)
 	handler.RegisterFixedBillSnapshotRoutes(e, snapshotHandler, authMW)
 	handler.RegisterExpenseRoutes(e, expenseHandler, authMW)
+	handler.RegisterImportRoutes(e, importHandler, authMW)
 	handler.RegisterSummaryRoutes(e, summaryHandler, authMW)
 
 	// Serve frontend SPA if dist/ directory exists

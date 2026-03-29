@@ -46,3 +46,24 @@ export interface Expense {
   paid_by_name?: string;
   assigned_to?: string;
 }
+
+export interface ParsedExpensePreview {
+  description: string;
+  amount_cents: number;
+  date: string;
+  suggested_category_id?: string;
+}
+
+export interface ImportPreviewResponse {
+  provider: string;
+  items: ParsedExpensePreview[];
+}
+
+export interface ImportConfirmItem {
+  category_id: string;
+  description: string;
+  amount_cents: number;
+  expense_date: string;
+  is_shared: boolean;
+  assigned_to: string;
+}
