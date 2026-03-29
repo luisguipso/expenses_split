@@ -144,7 +144,7 @@ func TestParseTransactionLines(t *testing.T) {
 			},
 		},
 		{
-			name: "all months parse correctly",
+			name: "all months parse correctly (mid-year bill)",
 			text: `01 JAN    A    10,00
 01 FEV    B    10,00
 01 MAR    C    10,00
@@ -154,9 +154,7 @@ func TestParseTransactionLines(t *testing.T) {
 01 JUL    G    10,00
 01 AGO    H    10,00
 01 SET    I    10,00
-01 OUT    J    10,00
-01 NOV    K    10,00
-01 DEZ    L    10,00`,
+01 OUT    J    10,00`,
 			year: 2024,
 			want: []domain.ParsedExpense{
 				{Description: "A", AmountCents: 1000, Date: "2024-01-01"},
@@ -169,9 +167,47 @@ func TestParseTransactionLines(t *testing.T) {
 				{Description: "H", AmountCents: 1000, Date: "2024-08-01"},
 				{Description: "I", AmountCents: 1000, Date: "2024-09-01"},
 				{Description: "J", AmountCents: 1000, Date: "2024-10-01"},
-				{Description: "K", AmountCents: 1000, Date: "2024-11-01"},
-				{Description: "L", AmountCents: 1000, Date: "2024-12-01"},
 			},
+		},
+		{
+			name: "year boundary: Jan bill with Dec transactions",
+			text: `28 NOV    COMPRA NOV               50,00
+15 DEZ    COMPRA DEZ              100,00
+02 JAN    COMPRA JAN               25,00`,
+			year: 2025,
+			want: []domain.ParsedExpense{
+				{Description: "COMPRA NOV", AmountCents: 5000, Date: "2024-11-28"},
+				{Description: "COMPRA DEZ", AmountCents: 10000, Date: "2024-12-15"},
+				{Description: "COMPRA JAN", AmountCents: 2500, Date: "2025-01-02"},
+			},
+		},
+		{
+			name: "no year boundary when all months are mid-year",
+			text: `10 MAI    COMPRA A    50,00
+15 JUN    COMPRA B    75,00`,
+			year: 2024,
+			want: []domain.ParsedExpense{
+				{Description: "COMPRA A", AmountCents: 5000, Date: "2024-05-10"},
+				{Description: "COMPRA B", AmountCents: 7500, Date: "2024-06-15"},
+			},
+		},
+		{
+			name: "rejects invalid date Feb 31",
+			text: "31 FEV    IMPOSSIBLE DATE    10,00",
+			year: 2024,
+			want: nil,
+		},
+		{
+			name: "rejects invalid day 00",
+			text: "00 JAN    BAD DAY    10,00",
+			year: 2024,
+			want: nil,
+		},
+		{
+			name: "filters empty description",
+			text: "15 MAR        23,45",
+			year: 2024,
+			want: nil,
 		},
 		{
 			name: "filters non-transaction lines",

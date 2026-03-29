@@ -23,8 +23,9 @@ var (
 	}
 
 	// Matches: DD MMM    DESCRIPTION    VALUE (Brazilian format)
+	// Day must be 01-31 range.
 	transactionRe = regexp.MustCompile(
-		`^(\d{2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(.+?)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})$`,
+		`^(0[1-9]|[12]\d|3[01])\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(.+?)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})$`,
 	)
 
 	// Matches a 4-digit year in the document to infer bill year.
@@ -100,9 +101,20 @@ func inferYear(text string) int {
 }
 
 // parseTransactionLines extracts transactions from the plain text of a Nubank bill.
-func parseTransactionLines(text string, year int) []domain.ParsedExpense {
+// It infers the correct year for each transaction, handling year boundaries
+// (e.g., a Jan bill with Dec transactions from the previous year).
+func parseTransactionLines(text string, billYear int) []domain.ParsedExpense {
 	var items []domain.ParsedExpense
 	lines := strings.Split(text, "\n")
+
+	// First pass: collect all transaction months to detect year boundary.
+	var parsedRows []struct {
+		day         int
+		month       int
+		description string
+		cents       int64
+	}
+	minMonth := 13
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -120,6 +132,10 @@ func parseTransactionLines(text string, year int) []domain.ParsedExpense {
 		description := strings.TrimSpace(matches[3])
 		amountStr := matches[4]
 
+		if description == "" {
+			continue
+		}
+
 		month, ok := monthMap[monthStr]
 		if !ok {
 			continue
@@ -130,10 +146,36 @@ func parseTransactionLines(text string, year int) []domain.ParsedExpense {
 			continue
 		}
 
-		date := fmt.Sprintf("%04d-%02d-%02d", year, month, day)
+		// Validate the date is real (e.g., reject Feb 31).
+		candidate := time.Date(billYear, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+		if candidate.Day() != day || candidate.Month() != time.Month(month) {
+			continue
+		}
+
+		if month < minMonth {
+			minMonth = month
+		}
+
+		parsedRows = append(parsedRows, struct {
+			day         int
+			month       int
+			description string
+			cents       int64
+		}{day, month, description, cents})
+	}
+
+	// Second pass: assign year, adjusting for year boundary.
+	// If the bill has early-year months (Jan/Feb) AND late-year months (Nov/Dec),
+	// the late-year transactions belong to the previous year.
+	for _, r := range parsedRows {
+		y := billYear
+		if minMonth <= 3 && r.month >= 11 {
+			y = billYear - 1
+		}
+		date := fmt.Sprintf("%04d-%02d-%02d", y, r.month, r.day)
 		items = append(items, domain.ParsedExpense{
-			Description: description,
-			AmountCents: cents,
+			Description: r.description,
+			AmountCents: r.cents,
 			Date:        date,
 		})
 	}
