@@ -7,6 +7,7 @@ import { Expense, Category, Member } from '../lib/types';
 import Layout from '../components/Layout';
 import Spinner from '../components/Spinner';
 import ErrorAlert from '../components/ErrorAlert';
+import ImportBillModal from '../components/ImportBillModal';
 
 function formatCurrency(cents: number): string {
   return (cents / 100).toLocaleString('pt-BR', {
@@ -44,6 +45,9 @@ export default function Expenses() {
   const [filterYear, setFilterYear] = useState(now.getFullYear());
   const [filterCategory, setFilterCategory] = useState('');
   const [filterUser, setFilterUser] = useState('');
+
+  // Import modal
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Form
   const [showForm, setShowForm] = useState(false);
@@ -191,13 +195,32 @@ export default function Expenses() {
     <Layout>
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-bold text-gray-900">Despesas</h2>
-        <button
-          onClick={openCreate}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          + Nova Despesa
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="rounded-md border border-blue-600 px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+          >
+            📄 Importar Fatura
+          </button>
+          <button
+            onClick={openCreate}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + Nova Despesa
+          </button>
+        </div>
       </div>
+
+      {showImportModal && (
+        <ImportBillModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          householdId={activeHousehold.id}
+          categories={categories}
+          members={members}
+          onImportComplete={fetchExpenses}
+        />
+      )}
 
       {error && (
         <ErrorAlert message={error} onDismiss={() => setError('')} />

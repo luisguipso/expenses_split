@@ -104,6 +104,7 @@ type FixedBillService interface {
 
 type ExpenseRepository interface {
 	Create(ctx context.Context, expense *Expense) error
+	CreateBatch(ctx context.Context, expenses []*Expense) error
 	FindByID(ctx context.Context, id string) (*Expense, error)
 	ListByHousehold(ctx context.Context, householdID string, filter ExpenseFilter) ([]Expense, error)
 	Update(ctx context.Context, expense *Expense) error
@@ -138,4 +139,9 @@ type SummaryService interface {
 	Generate(ctx context.Context, householdID string, year, month int, userID string) (*SummaryResponse, error)
 	GetDashboard(ctx context.Context, householdID, userID string) (*DashboardResponse, error)
 	GetUserDetail(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*SummaryDetailResponse, error)
+}
+
+type ImportService interface {
+	ParseBill(ctx context.Context, filename string, content []byte, householdID, userID string) (*ImportPreviewResponse, error)
+	ConfirmImport(ctx context.Context, input ImportConfirmInput, householdID, userID string) ([]Expense, error)
 }
