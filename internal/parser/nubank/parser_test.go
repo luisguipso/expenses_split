@@ -269,13 +269,18 @@ func TestInferYear(t *testing.T) {
 		want int
 	}{
 		{
-			name: "extracts year from closing date",
-			text: "Vencimento: 15 ABR 2024\nsome transactions",
+			name: "extracts year from FATURA header",
+			text: "FATURA 09 MAR 2026EMISSÃO E ENVIO 01 MAR 2026\nsome text\nanos de 2025",
+			want: 2026,
+		},
+		{
+			name: "falls back to first year when no FATURA header",
+			text: "Vencimento: 15 ABR 2024\nsome transactions\nano de 2023",
 			want: 2024,
 		},
 		{
-			name: "uses last year found",
-			text: "Período: 2023\nVencimento: 10 JAN 2024",
+			name: "uses first year found",
+			text: "Período: 2024\nVencimento: 10 JAN 2023",
 			want: 2024,
 		},
 		{
@@ -290,6 +295,76 @@ func TestInferYear(t *testing.T) {
 			got := inferYear(tc.text)
 			if got != tc.want {
 				t.Errorf("inferYear() = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestFormatTransactionLine(t *testing.T) {
+	tests := []struct {
+		name   string
+		date   string
+		detail string
+		want   string
+		wantOK bool
+	}{
+		{
+			name:   "standard transaction with card mask",
+			date:   "01 FEV",
+			detail: "•••• 9581Dm Auto Mecanica - Parcela 2/3R$ 406,00",
+			want:   "01 FEV    Dm Auto Mecanica - Parcela 2/3    406,00",
+			wantOK: true,
+		},
+		{
+			name:   "refund with unicode minus",
+			date:   "03 FEV",
+			detail: "Estorno de \"Shein *Mega Kids Moda\"\u2212R$ 41,90",
+			want:   "03 FEV    Estorno de \"Shein *Mega Kids Moda\"    -41,90",
+			wantOK: true,
+		},
+		{
+			name:   "refund with ascii minus",
+			date:   "08 FEV",
+			detail: "Estorno de \"Mercadolivre*Grupovoke\"-R$ 80,33",
+			want:   "08 FEV    Estorno de \"Mercadolivre*Grupovoke\"    -80,33",
+			wantOK: true,
+		},
+		{
+			name:   "NuPay without card mask",
+			date:   "18 FEV",
+			detail: "Cobasi - NuPayR$ 35,64",
+			want:   "18 FEV    Cobasi - NuPay    35,64",
+			wantOK: true,
+		},
+		{
+			name:   "thousands separator in amount",
+			date:   "10 FEV",
+			detail: "•••• 9581Jim.Com* Souza Gas eR$ 1.250,00",
+			want:   "10 FEV    Jim.Com* Souza Gas e    1.250,00",
+			wantOK: true,
+		},
+		{
+			name:   "skips payment entries",
+			date:   "09 FEV",
+			detail: "Pagamento em 09 FEV\u2212R$ 6.236,67",
+			wantOK: false,
+		},
+		{
+			name:   "rejects non-detail row",
+			date:   "01 FEV",
+			detail: "TRANSAÇÕES",
+			wantOK: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := formatTransactionLine(tc.date, tc.detail)
+			if ok != tc.wantOK {
+				t.Fatalf("formatTransactionLine() ok = %v, want %v (got %q)", ok, tc.wantOK, got)
+			}
+			if ok && got != tc.want {
+				t.Errorf("formatTransactionLine() = %q, want %q", got, tc.want)
 			}
 		})
 	}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,6 +29,19 @@ var (
 
 	// Matches a 4-digit year in the document to infer bill year.
 	yearRe = regexp.MustCompile(`\b(20\d{2})\b`)
+
+	// Matches the FATURA header: "FATURA DD MMM YYYY"
+	faturaYearRe = regexp.MustCompile(`FATURA\s+\d{2}\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)\s+(20\d{2})`)
+
+	// Matches a standalone date row from GetTextByRow: "DD MMM"
+	dateRowRe = regexp.MustCompile(
+		`^(0[1-9]|[12]\d|3[01])\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)$`,
+	)
+
+	// Matches a detail row: [•••• DDDD]Description[−/-]R$ D.DDD,DD
+	detailRowRe = regexp.MustCompile(
+		`^(?:\x{2022}+\s*\d{4})?(.+?)([−-]?)R\$\s*(\d{1,3}(?:\.\d{3})*,\d{2})$`,
+	)
 )
 
 // Parser extracts transactions from Nubank credit card bill PDFs.
@@ -40,9 +52,22 @@ func NewParser() *Parser {
 }
 
 func (p *Parser) Supports(content []byte) bool {
+	// First try raw bytes (works for plain text input and tests).
 	lower := bytes.ToLower(content)
-	return bytes.Contains(lower, []byte("nu pagamentos")) ||
-		bytes.Contains(lower, []byte("nubank"))
+	if bytes.Contains(lower, []byte("nu pagamentos")) ||
+		bytes.Contains(lower, []byte("nubank")) {
+		return true
+	}
+
+	// PDF files store text in compressed streams, so keywords won't appear
+	// in raw bytes. Extract via GetPlainText which works for keyword matching.
+	text, err := extractPlainText(content)
+	if err != nil {
+		return false
+	}
+	textLower := strings.ToLower(text)
+	return strings.Contains(textLower, "nu pagamentos") ||
+		strings.Contains(textLower, "nubank")
 }
 
 func (p *Parser) Parse(ctx context.Context, reader io.Reader) (*domain.ParsedBill, error) {
@@ -51,33 +76,12 @@ func (p *Parser) Parse(ctx context.Context, reader io.Reader) (*domain.ParsedBil
 		return nil, fmt.Errorf("nubank parse: read input: %w", err)
 	}
 
-	tmpFile, err := os.CreateTemp("", "nubank-bill-*.pdf")
-	if err != nil {
-		return nil, fmt.Errorf("nubank parse: create temp file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(data); err != nil {
-		tmpFile.Close()
-		return nil, fmt.Errorf("nubank parse: write temp file: %w", err)
-	}
-	tmpFile.Close()
-
-	pdfReader, err := pdf.Open(tmpFile.Name())
+	r, err := pdf.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return nil, fmt.Errorf("nubank parse: open pdf: %w", err)
 	}
 
-	var buf bytes.Buffer
-	plainText, err := pdfReader.GetPlainText()
-	if err != nil {
-		return nil, fmt.Errorf("nubank parse: extract text: %w", err)
-	}
-	if _, err := io.Copy(&buf, plainText); err != nil {
-		return nil, fmt.Errorf("nubank parse: read text: %w", err)
-	}
-
-	text := buf.String()
+	text := buildTextFromRows(r)
 	year := inferYear(text)
 	items := parseTransactionLines(text, year)
 
@@ -87,16 +91,126 @@ func (p *Parser) Parse(ctx context.Context, reader io.Reader) (*domain.ParsedBil
 	}, nil
 }
 
-// inferYear extracts the most likely bill year from the document text.
-// It returns the last 4-digit year found (typically the closing date year),
-// or the current year as fallback.
+// extractPlainText uses GetPlainText for simple text extraction (keyword search, year inference).
+func extractPlainText(content []byte) (string, error) {
+	r, err := pdf.NewReader(bytes.NewReader(content), int64(len(content)))
+	if err != nil {
+		return "", err
+	}
+	pt, err := r.GetPlainText()
+	if err != nil {
+		return "", err
+	}
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, pt); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// buildTextFromRows uses GetTextByRow to reconstruct properly formatted text.
+// Nubank PDFs render each transaction as two rows:
+//
+//	Row 1: "DD MMM" (date)
+//	Row 2: "[•••• DDDD]Description[−]R$ D.DDD,DD" (card mask + description + amount)
+//
+// This function combines them into: "DD MMM    Description    [-]D.DDD,DD"
+// which matches the format expected by parseTransactionLines.
+// Non-transaction rows are included as-is for year inference.
+func buildTextFromRows(r *pdf.Reader) string {
+	var lines []string
+
+	for pg := 1; pg <= r.NumPage(); pg++ {
+		page := r.Page(pg)
+		rows, err := page.GetTextByRow()
+		if err != nil {
+			continue
+		}
+
+		var textRows []string
+		for _, row := range rows {
+			var parts []string
+			for _, t := range row.Content {
+				if t.S != "" {
+					parts = append(parts, t.S)
+				}
+			}
+			text := strings.Join(parts, "")
+			if strings.TrimSpace(text) != "" {
+				textRows = append(textRows, text)
+			}
+		}
+
+		for i := 0; i < len(textRows); i++ {
+			row := textRows[i]
+
+			dateMatch := dateRowRe.FindStringSubmatch(row)
+			if dateMatch == nil {
+				lines = append(lines, row)
+				continue
+			}
+
+			// Found a date row — check if the next row is a transaction detail.
+			if i+1 < len(textRows) {
+				if line, ok := formatTransactionLine(dateMatch[0], textRows[i+1]); ok {
+					lines = append(lines, line)
+					i++ // skip the detail row
+					continue
+				}
+			}
+
+			lines = append(lines, row)
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// formatTransactionLine combines a date row and a detail row into a single line
+// in the format "DD MMM    Description    [-]Amount" that parseTransactionLines expects.
+func formatTransactionLine(date, detail string) (string, bool) {
+	matches := detailRowRe.FindStringSubmatch(detail)
+	if matches == nil {
+		return "", false
+	}
+
+	description := strings.TrimSpace(matches[1])
+	sign := matches[2]
+	amount := matches[3]
+
+	if description == "" {
+		return "", false
+	}
+
+	// Skip payment entries — these are not expenses.
+	if strings.HasPrefix(strings.ToLower(description), "pagamento") {
+		return "", false
+	}
+
+	prefix := ""
+	if sign != "" {
+		prefix = "-"
+	}
+
+	return fmt.Sprintf("%s    %s    %s%s", date, description, prefix, amount), true
+}
+
+// inferYear extracts the bill year from the document text.
+// It first looks for the FATURA header pattern (e.g., "FATURA 09 MAR 2026"),
+// then falls back to the first 4-digit year found, then to the current year.
 func inferYear(text string) int {
+	// Prefer the year from the FATURA header — most reliable.
+	if m := faturaYearRe.FindStringSubmatch(text); m != nil {
+		y, _ := strconv.Atoi(m[1])
+		return y
+	}
+
 	matches := yearRe.FindAllString(text, -1)
 	if len(matches) == 0 {
 		return time.Now().Year()
 	}
-	// Use the last year found — usually the closing/due date near the top.
-	y, _ := strconv.Atoi(matches[len(matches)-1])
+	// Use the first year found — typically from the bill header/closing date.
+	y, _ := strconv.Atoi(matches[0])
 	return y
 }
 
