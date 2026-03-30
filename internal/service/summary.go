@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"sort"
 	"time"
@@ -36,12 +37,25 @@ func NewSummaryService(
 }
 
 func (s *summaryService) Generate(ctx context.Context, householdID string, year, month int, userID string) (*domain.SummaryResponse, error) {
+	slog.Info("service: generating summary",
+		"household_id", householdID,
+		"year", year,
+		"month", month,
+		"user_id", userID,
+	)
+
 	if err := s.checkMembership(ctx, householdID, userID); err != nil {
 		return nil, err
 	}
 
 	breakdown, totalShared, bills, err := s.calculate(ctx, householdID, year, month)
 	if err != nil {
+		slog.Error("service: failed to calculate summary",
+			"error", err,
+			"household_id", householdID,
+			"year", year,
+			"month", month,
+		)
 		return nil, err
 	}
 
@@ -80,6 +94,12 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		})
 	}
 	if err := s.summaryRepo.Upsert(ctx, summary); err != nil {
+		slog.Error("service: failed to persist summary",
+			"error", err,
+			"household_id", householdID,
+			"year", year,
+			"month", month,
+		)
 		return nil, fmt.Errorf("persist summary: %w", err)
 	}
 
@@ -87,6 +107,15 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 	for _, b := range breakdown {
 		totalAll += b.AmountDueCents
 	}
+
+	slog.Info("service: summary generated",
+		"summary_id", summary.ID,
+		"household_id", householdID,
+		"year", year,
+		"month", month,
+		"member_count", len(breakdown),
+		"total_shared_cents", totalShared,
+	)
 
 	return &domain.SummaryResponse{
 		ID:               summary.ID,
@@ -103,6 +132,11 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 }
 
 func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID string) (*domain.DashboardResponse, error) {
+	slog.Debug("service: getting dashboard",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	if err := s.checkMembership(ctx, householdID, userID); err != nil {
 		return nil, err
 	}
@@ -199,6 +233,12 @@ func dueDayPassed(year, month, dueDay int, now time.Time) bool {
 // resolveFixedBills returns the effective fixed bill values for a given month.
 // Bills whose due_day has passed are frozen (snapshotted); others use live values.
 func (s *summaryService) resolveFixedBills(ctx context.Context, householdID string, year, month int) ([]resolvedBill, error) {
+	slog.Debug("service: resolving fixed bills",
+		"household_id", householdID,
+		"year", year,
+		"month", month,
+	)
+
 	now := time.Now()
 
 	allBills, err := s.fixedBillRepo.ListByHousehold(ctx, householdID)
@@ -255,6 +295,12 @@ func (s *summaryService) resolveFixedBills(ctx context.Context, householdID stri
 
 		if dueDayPassed(year, month, b.DueDay, now) {
 			// Due day passed, create snapshot
+			slog.Info("service: freezing fixed bill into snapshot",
+				"fixed_bill_id", b.ID,
+				"household_id", householdID,
+				"year", year,
+				"month", month,
+			)
 			snap := &domain.FixedBillSnapshot{
 				FixedBillID: b.ID,
 				HouseholdID: householdID,
@@ -465,6 +511,14 @@ func (s *summaryService) checkMembership(ctx context.Context, householdID, userI
 }
 
 func (s *summaryService) GetUserDetail(ctx context.Context, householdID string, year, month int, targetUserID, requestingUserID string) (*domain.SummaryDetailResponse, error) {
+	slog.Debug("service: getting user summary detail",
+		"household_id", householdID,
+		"year", year,
+		"month", month,
+		"target_user_id", targetUserID,
+		"requesting_user_id", requestingUserID,
+	)
+
 	if err := s.checkMembership(ctx, householdID, requestingUserID); err != nil {
 		return nil, err
 	}
