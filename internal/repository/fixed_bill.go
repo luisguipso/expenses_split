@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,6 +21,9 @@ func NewFixedBillRepository(db *pgxpool.Pool) domain.FixedBillRepository {
 }
 
 func (r *fixedBillRepository) Create(ctx context.Context, b *domain.FixedBill) error {
+	slog.Info("repo: creating fixed bill",
+		"household_id", b.HouseholdID,
+	)
 	var categoryID, assignedTo *string
 	if b.CategoryID != "" {
 		categoryID = &b.CategoryID
@@ -35,12 +39,23 @@ func (r *fixedBillRepository) Create(ctx context.Context, b *domain.FixedBill) e
 		b.HouseholdID, categoryID, b.Description, b.AmountCents, b.DueDay, b.IsShared, b.PaidBy, assignedTo,
 	).Scan(&b.ID, &b.IsActive, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
+		slog.Error("repo: failed to create fixed bill",
+			"error", err,
+			"household_id", b.HouseholdID,
+		)
 		return fmt.Errorf("create fixed bill: %w", err)
 	}
+	slog.Info("repo: fixed bill created",
+		"fixed_bill_id", b.ID,
+		"household_id", b.HouseholdID,
+	)
 	return nil
 }
 
 func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.FixedBill, error) {
+	slog.Debug("repo: fetching fixed bill by ID",
+		"fixed_bill_id", id,
+	)
 	b := &domain.FixedBill{}
 	var categoryID, assignedTo, categoryName, paidByName sql.NullString
 	err := r.db.QueryRow(ctx,
@@ -58,8 +73,15 @@ func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.
 		&b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Debug("repo: fixed bill not found",
+				"fixed_bill_id", id,
+			)
 			return nil, domain.ErrFixedBillNotFound
 		}
+		slog.Error("repo: failed to fetch fixed bill",
+			"error", err,
+			"fixed_bill_id", id,
+		)
 		return nil, fmt.Errorf("find fixed bill: %w", err)
 	}
 	if categoryID.Valid {
@@ -78,6 +100,9 @@ func (r *fixedBillRepository) FindByID(ctx context.Context, id string) (*domain.
 }
 
 func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID string) ([]domain.FixedBill, error) {
+	slog.Debug("repo: listing fixed bills by household",
+		"household_id", householdID,
+	)
 	rows, err := r.db.Query(ctx,
 		`SELECT fb.id, fb.household_id, fb.category_id, c.name, fb.description,
 		        fb.amount_cents, fb.due_day, fb.is_shared, fb.paid_by::text, u.name,
@@ -90,6 +115,10 @@ func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID s
 		 ORDER BY fb.due_day, fb.description`, householdID,
 	)
 	if err != nil {
+		slog.Error("repo: failed to list fixed bills",
+			"error", err,
+			"household_id", householdID,
+		)
 		return nil, fmt.Errorf("list fixed bills: %w", err)
 	}
 	defer rows.Close()
@@ -122,6 +151,10 @@ func (r *fixedBillRepository) ListByHousehold(ctx context.Context, householdID s
 }
 
 func (r *fixedBillRepository) Update(ctx context.Context, b *domain.FixedBill) error {
+	slog.Info("repo: updating fixed bill",
+		"fixed_bill_id", b.ID,
+		"household_id", b.HouseholdID,
+	)
 	var categoryID, assignedTo *string
 	if b.CategoryID != "" {
 		categoryID = &b.CategoryID
@@ -137,21 +170,38 @@ func (r *fixedBillRepository) Update(ctx context.Context, b *domain.FixedBill) e
 		categoryID, b.Description, b.AmountCents, b.DueDay, b.IsShared, b.PaidBy, assignedTo, b.IsActive, b.ID,
 	)
 	if err != nil {
+		slog.Error("repo: failed to update fixed bill",
+			"error", err,
+			"fixed_bill_id", b.ID,
+		)
 		return fmt.Errorf("update fixed bill: %w", err)
 	}
 	if result.RowsAffected() == 0 {
 		return domain.ErrFixedBillNotFound
 	}
+	slog.Info("repo: fixed bill updated",
+		"fixed_bill_id", b.ID,
+	)
 	return nil
 }
 
 func (r *fixedBillRepository) Delete(ctx context.Context, id string) error {
+	slog.Info("repo: deleting fixed bill",
+		"fixed_bill_id", id,
+	)
 	result, err := r.db.Exec(ctx, `DELETE FROM fixed_bills WHERE id = $1`, id)
 	if err != nil {
+		slog.Error("repo: failed to delete fixed bill",
+			"error", err,
+			"fixed_bill_id", id,
+		)
 		return fmt.Errorf("delete fixed bill: %w", err)
 	}
 	if result.RowsAffected() == 0 {
 		return domain.ErrFixedBillNotFound
 	}
+	slog.Info("repo: fixed bill deleted",
+		"fixed_bill_id", id,
+	)
 	return nil
 }

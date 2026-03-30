@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,6 +21,12 @@ func NewFixedBillSnapshotRepository(db *pgxpool.Pool) domain.FixedBillSnapshotRe
 }
 
 func (r *fixedBillSnapshotRepository) Create(ctx context.Context, s *domain.FixedBillSnapshot) error {
+	slog.Info("repo: creating fixed bill snapshot",
+		"fixed_bill_id", s.FixedBillID,
+		"household_id", s.HouseholdID,
+		"year", s.Year,
+		"month", s.Month,
+	)
 	var categoryID, assignedTo *string
 	if s.CategoryID != "" {
 		categoryID = &s.CategoryID
@@ -35,12 +42,26 @@ func (r *fixedBillSnapshotRepository) Create(ctx context.Context, s *domain.Fixe
 		s.FixedBillID, s.HouseholdID, s.Year, s.Month, categoryID, s.Description, s.AmountCents, s.DueDay, s.IsShared, s.PaidBy, assignedTo,
 	).Scan(&s.ID, &s.FrozenAt, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
+		slog.Error("repo: failed to create fixed bill snapshot",
+			"error", err,
+			"fixed_bill_id", s.FixedBillID,
+			"household_id", s.HouseholdID,
+		)
 		return fmt.Errorf("create fixed bill snapshot: %w", err)
 	}
+	slog.Info("repo: fixed bill snapshot created",
+		"snapshot_id", s.ID,
+		"household_id", s.HouseholdID,
+	)
 	return nil
 }
 
 func (r *fixedBillSnapshotRepository) FindByMonth(ctx context.Context, householdID string, year, month int) ([]domain.FixedBillSnapshot, error) {
+	slog.Debug("repo: fetching fixed bill snapshots by month",
+		"household_id", householdID,
+		"year", year,
+		"month", month,
+	)
 	rows, err := r.db.Query(ctx,
 		`SELECT id, fixed_bill_id, household_id, year, month, category_id, description,
 		        amount_cents, due_day, is_shared, paid_by, assigned_to,
@@ -50,6 +71,10 @@ func (r *fixedBillSnapshotRepository) FindByMonth(ctx context.Context, household
 		 ORDER BY due_day, description`, householdID, year, month,
 	)
 	if err != nil {
+		slog.Error("repo: failed to list fixed bill snapshots",
+			"error", err,
+			"household_id", householdID,
+		)
 		return nil, fmt.Errorf("list fixed bill snapshots: %w", err)
 	}
 	defer rows.Close()
@@ -76,6 +101,9 @@ func (r *fixedBillSnapshotRepository) FindByMonth(ctx context.Context, household
 }
 
 func (r *fixedBillSnapshotRepository) FindByID(ctx context.Context, id string) (*domain.FixedBillSnapshot, error) {
+	slog.Debug("repo: fetching fixed bill snapshot by ID",
+		"snapshot_id", id,
+	)
 	s := &domain.FixedBillSnapshot{}
 	var categoryID, assignedTo sql.NullString
 	err := r.db.QueryRow(ctx,
@@ -90,8 +118,15 @@ func (r *fixedBillSnapshotRepository) FindByID(ctx context.Context, id string) (
 		&s.FrozenAt, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			slog.Debug("repo: fixed bill snapshot not found",
+				"snapshot_id", id,
+			)
 			return nil, domain.ErrFixedBillSnapshotNotFound
 		}
+		slog.Error("repo: failed to fetch fixed bill snapshot",
+			"error", err,
+			"snapshot_id", id,
+		)
 		return nil, fmt.Errorf("find fixed bill snapshot: %w", err)
 	}
 	if categoryID.Valid {
@@ -104,6 +139,10 @@ func (r *fixedBillSnapshotRepository) FindByID(ctx context.Context, id string) (
 }
 
 func (r *fixedBillSnapshotRepository) Update(ctx context.Context, s *domain.FixedBillSnapshot) error {
+	slog.Info("repo: updating fixed bill snapshot",
+		"snapshot_id", s.ID,
+		"household_id", s.HouseholdID,
+	)
 	var categoryID, assignedTo *string
 	if s.CategoryID != "" {
 		categoryID = &s.CategoryID
@@ -119,21 +158,38 @@ func (r *fixedBillSnapshotRepository) Update(ctx context.Context, s *domain.Fixe
 		categoryID, s.Description, s.AmountCents, s.DueDay, s.IsShared, s.PaidBy, assignedTo, s.ID,
 	)
 	if err != nil {
+		slog.Error("repo: failed to update fixed bill snapshot",
+			"error", err,
+			"snapshot_id", s.ID,
+		)
 		return fmt.Errorf("update fixed bill snapshot: %w", err)
 	}
 	if result.RowsAffected() == 0 {
 		return domain.ErrFixedBillSnapshotNotFound
 	}
+	slog.Info("repo: fixed bill snapshot updated",
+		"snapshot_id", s.ID,
+	)
 	return nil
 }
 
 func (r *fixedBillSnapshotRepository) Delete(ctx context.Context, id string) error {
+	slog.Info("repo: deleting fixed bill snapshot",
+		"snapshot_id", id,
+	)
 	result, err := r.db.Exec(ctx, `DELETE FROM fixed_bill_snapshots WHERE id = $1`, id)
 	if err != nil {
+		slog.Error("repo: failed to delete fixed bill snapshot",
+			"error", err,
+			"snapshot_id", id,
+		)
 		return fmt.Errorf("delete fixed bill snapshot: %w", err)
 	}
 	if result.RowsAffected() == 0 {
 		return domain.ErrFixedBillSnapshotNotFound
 	}
+	slog.Info("repo: fixed bill snapshot deleted",
+		"snapshot_id", id,
+	)
 	return nil
 }

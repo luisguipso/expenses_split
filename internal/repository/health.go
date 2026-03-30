@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lguilherme/contas/internal/domain"
@@ -16,5 +17,6 @@ func NewHealthChecker(db *pgxpool.Pool) domain.HealthChecker {
 }
 
 func (h *dbHealthChecker) Ping(ctx context.Context) error {
+	slog.Debug("repo: pinging database")
 	return h.db.Ping(ctx)
 }
