@@ -65,5 +65,6 @@ export interface ImportConfirmItem {
   amount_cents: number;
   expense_date: string;
   is_shared: boolean;
+  paid_by: string;
   assigned_to: string;
 }

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { importApi } from '../lib/import-api';
+import { useAuth } from '../lib/auth';
 import type {
   Category,
   Member,
@@ -21,6 +22,7 @@ interface EditableItem extends ParsedExpensePreview {
   selected: boolean;
   category_id: string;
   is_shared: boolean;
+  paid_by: string;
   assigned_to: string;
 }
 
@@ -36,8 +38,10 @@ export default function ImportBillModal({
   onClose,
   householdId,
   categories,
+  members,
   onImportComplete,
 }: ImportBillModalProps) {
+  const { user } = useAuth();
   const [step, setStep] = useState<'upload' | 'preview' | 'importing'>('upload');
   const [items, setItems] = useState<EditableItem[]>([]);
   const [provider, setProvider] = useState('');
@@ -59,6 +63,7 @@ export default function ImportBillModal({
             selected: true,
             category_id: item.suggested_category_id || '',
             is_shared: true,
+            paid_by: user?.id || '',
             assigned_to: '',
           }))
         );
@@ -115,6 +120,7 @@ export default function ImportBillModal({
         amount_cents: it.amount_cents,
         expense_date: it.date,
         is_shared: it.is_shared,
+        paid_by: it.paid_by,
         assigned_to: it.is_shared ? '' : it.assigned_to,
       }));
       await importApi.confirm(householdId, confirmItems);
@@ -278,6 +284,17 @@ export default function ImportBillModal({
                           />
                           Compartilhada
                         </label>
+                        <select
+                          value={item.paid_by}
+                          onChange={(e) => updateItem(idx, { paid_by: e.target.value })}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                        >
+                          {members.map((m) => (
+                            <option key={m.user_id} value={m.user_id}>
+                              {m.user_name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -311,6 +328,9 @@ export default function ImportBillModal({
                       </th>
                       <th className="px-3 py-2 text-center text-xs font-medium uppercase text-gray-500">
                         Compartilhada
+                      </th>
+                      <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">
+                        Pago por
                       </th>
                     </tr>
                   </thead>
@@ -394,6 +414,21 @@ export default function ImportBillModal({
                             }
                             className="rounded border-gray-300"
                           />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={item.paid_by}
+                            onChange={(e) =>
+                              updateItem(idx, { paid_by: e.target.value })
+                            }
+                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                          >
+                            {members.map((m) => (
+                              <option key={m.user_id} value={m.user_id}>
+                                {m.user_name}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                       </tr>
                     ))}

@@ -47,6 +47,7 @@ type ImportConfirmItem struct {
 	AmountCents int64  `json:"amount_cents"`
 	ExpenseDate string `json:"expense_date"`
 	IsShared    bool   `json:"is_shared"`
+	PaidBy      string `json:"paid_by"`
 	AssignedTo  string `json:"assigned_to"`
 }
 

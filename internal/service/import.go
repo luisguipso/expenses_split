@@ -130,6 +130,11 @@ func (s *importService) ConfirmImport(ctx context.Context, input domain.ImportCo
 			return nil, fmt.Errorf("confirm import: item %d: expense_date is required", i)
 		}
 
+		paidBy := item.PaidBy
+		if paidBy == "" {
+			paidBy = userID
+		}
+
 		expenses[i] = &domain.Expense{
 			HouseholdID: householdID,
 			CategoryID:  item.CategoryID,
@@ -137,7 +142,7 @@ func (s *importService) ConfirmImport(ctx context.Context, input domain.ImportCo
 			AmountCents: item.AmountCents,
 			ExpenseDate: item.ExpenseDate,
 			IsShared:    item.IsShared,
-			PaidBy:      userID,
+			PaidBy:      paidBy,
 			AssignedTo:  item.AssignedTo,
 		}
 	}
