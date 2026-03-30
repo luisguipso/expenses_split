@@ -36,7 +36,6 @@ export default function ImportBillModal({
   onClose,
   householdId,
   categories,
-  members,
   onImportComplete,
 }: ImportBillModalProps) {
   const [step, setStep] = useState<'upload' | 'preview' | 'importing'>('upload');
@@ -59,7 +58,7 @@ export default function ImportBillModal({
             ...item,
             selected: true,
             category_id: item.suggested_category_id || '',
-            is_shared: false,
+            is_shared: true,
             assigned_to: '',
           }))
         );
