@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -40,11 +41,24 @@ func (h *FixedBillSnapshotHandler) Update(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: updating fixed bill snapshot",
+		"snapshot_id", id,
+		"user_id", userID,
+	)
+
 	snap, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
+		slog.Error("handler: failed to update fixed bill snapshot",
+			"error", err,
+			"snapshot_id", id,
+			"user_id", userID,
+		)
 		return snapshotError(err)
 	}
 
+	slog.Info("handler: fixed bill snapshot updated",
+		"snapshot_id", snap.ID,
+	)
 	return c.JSON(http.StatusOK, domain.FixedBillSnapshotResponse{
 		ID:          snap.ID,
 		FixedBillID: snap.FixedBillID,

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -32,11 +33,23 @@ func (h *HouseholdHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: creating household",
+		"user_id", userID,
+	)
+
 	household, err := h.svc.Create(c.Request().Context(), input, userID)
 	if err != nil {
+		slog.Error("handler: failed to create household",
+			"error", err,
+			"user_id", userID,
+		)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create household")
 	}
 
+	slog.Info("handler: household created",
+		"household_id", household.ID,
+	)
 	return c.JSON(http.StatusCreated, toHouseholdResponse(household))
 }
 
@@ -47,8 +60,18 @@ func (h *HouseholdHandler) Get(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: getting household",
+		"household_id", id,
+		"user_id", userID,
+	)
+
 	household, err := h.svc.GetByID(c.Request().Context(), id, userID)
 	if err != nil {
+		slog.Error("handler: failed to get household",
+			"error", err,
+			"household_id", id,
+			"user_id", userID,
+		)
 		return householdError(err)
 	}
 
@@ -61,8 +84,16 @@ func (h *HouseholdHandler) List(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: listing households",
+		"user_id", userID,
+	)
+
 	households, err := h.svc.ListByUser(c.Request().Context(), userID)
 	if err != nil {
+		slog.Error("handler: failed to list households",
+			"error", err,
+			"user_id", userID,
+		)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list households")
 	}
 
@@ -90,11 +121,25 @@ func (h *HouseholdHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: updating household",
+		"household_id", id,
+		"user_id", userID,
+	)
+
 	household, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
+		slog.Error("handler: failed to update household",
+			"error", err,
+			"household_id", id,
+			"user_id", userID,
+		)
 		return householdError(err)
 	}
 
+	slog.Info("handler: household updated",
+		"household_id", household.ID,
+	)
 	return c.JSON(http.StatusOK, toHouseholdResponse(household))
 }
 
@@ -105,10 +150,23 @@ func (h *HouseholdHandler) Delete(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: deleting household",
+		"household_id", id,
+		"user_id", userID,
+	)
+
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
+		slog.Error("handler: failed to delete household",
+			"error", err,
+			"household_id", id,
+			"user_id", userID,
+		)
 		return householdError(err)
 	}
 
+	slog.Info("handler: household deleted",
+		"household_id", id,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -125,6 +183,11 @@ func (h *HouseholdHandler) Join(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: joining household",
+		"user_id", userID,
+	)
+
 	household, err := h.svc.Join(c.Request().Context(), input.InviteCode, userID)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidInviteCode) {
@@ -133,9 +196,17 @@ func (h *HouseholdHandler) Join(c echo.Context) error {
 		if errors.Is(err, domain.ErrAlreadyMember) {
 			return echo.NewHTTPError(http.StatusConflict, "already a member")
 		}
+		slog.Error("handler: failed to join household",
+			"error", err,
+			"user_id", userID,
+		)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to join household")
 	}
 
+	slog.Info("handler: household joined",
+		"household_id", household.ID,
+		"user_id", userID,
+	)
 	return c.JSON(http.StatusOK, toHouseholdResponse(household))
 }
 
@@ -146,8 +217,18 @@ func (h *HouseholdHandler) ListMembers(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: listing members",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	members, err := h.svc.ListMembers(c.Request().Context(), householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to list members",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return householdError(err)
 	}
 
@@ -174,10 +255,27 @@ func (h *HouseholdHandler) UpdateMemberSalary(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: updating member salary",
+		"household_id", householdID,
+		"member_id", memberID,
+		"user_id", userID,
+	)
+
 	if err := h.svc.UpdateMemberSalary(c.Request().Context(), householdID, memberID, input.SalaryCents, userID); err != nil {
+		slog.Error("handler: failed to update member salary",
+			"error", err,
+			"household_id", householdID,
+			"member_id", memberID,
+			"user_id", userID,
+		)
 		return householdError(err)
 	}
 
+	slog.Info("handler: member salary updated",
+		"household_id", householdID,
+		"member_id", memberID,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -189,10 +287,26 @@ func (h *HouseholdHandler) RemoveMember(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: removing member",
+		"household_id", householdID,
+		"member_id", memberID,
+		"user_id", userID,
+	)
+
 	if err := h.svc.RemoveMember(c.Request().Context(), householdID, memberID, userID); err != nil {
+		slog.Error("handler: failed to remove member",
+			"error", err,
+			"household_id", householdID,
+			"member_id", memberID,
+			"user_id", userID,
+		)
 		return householdError(err)
 	}
 
+	slog.Info("handler: member removed",
+		"household_id", householdID,
+		"member_id", memberID,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 

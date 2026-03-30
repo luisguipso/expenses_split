@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -37,11 +38,26 @@ func (h *ExpenseHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: creating expense",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	expense, err := h.svc.Create(c.Request().Context(), input, householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to create expense",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return expenseError(err)
 	}
 
+	slog.Info("handler: expense created",
+		"expense_id", expense.ID,
+		"household_id", householdID,
+	)
 	return c.JSON(http.StatusCreated, toExpenseResponse(expense))
 }
 
@@ -67,8 +83,18 @@ func (h *ExpenseHandler) List(c echo.Context) error {
 		}
 	}
 
+	slog.Info("handler: listing expenses",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	expenses, err := h.svc.List(c.Request().Context(), householdID, userID, filter)
 	if err != nil {
+		slog.Error("handler: failed to list expenses",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return expenseError(err)
 	}
 
@@ -102,11 +128,25 @@ func (h *ExpenseHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: updating expense",
+		"expense_id", id,
+		"user_id", userID,
+	)
+
 	expense, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
+		slog.Error("handler: failed to update expense",
+			"error", err,
+			"expense_id", id,
+			"user_id", userID,
+		)
 		return expenseError(err)
 	}
 
+	slog.Info("handler: expense updated",
+		"expense_id", expense.ID,
+	)
 	return c.JSON(http.StatusOK, toExpenseResponse(expense))
 }
 
@@ -117,10 +157,23 @@ func (h *ExpenseHandler) Delete(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: deleting expense",
+		"expense_id", id,
+		"user_id", userID,
+	)
+
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
+		slog.Error("handler: failed to delete expense",
+			"error", err,
+			"expense_id", id,
+			"user_id", userID,
+		)
 		return expenseError(err)
 	}
 
+	slog.Info("handler: expense deleted",
+		"expense_id", id,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 
