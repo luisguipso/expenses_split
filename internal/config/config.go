@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -21,7 +22,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	return &Config{
+	cfg := &Config{
 		Port:                getEnv("PORT", "8080"),
 		DatabaseURL:         getEnv("DATABASE_URL", "postgres://contas:contas@localhost:5432/contas?sslmode=disable"),
 		JWTSecret:           getEnv("JWT_SECRET", "dev-secret-change-in-production"),
@@ -34,6 +35,16 @@ func Load() *Config {
 		VerificationCodeTTL: getEnvDuration("VERIFICATION_CODE_TTL", 15*time.Minute),
 		PasswordResetTTL:    getEnvDuration("PASSWORD_RESET_TTL", 30*time.Minute),
 	}
+
+	slog.Info("config: loaded configuration",
+		"port", cfg.Port,
+		"frontend_url", cfg.FrontendURL,
+		"smtp_host", cfg.SMTPHost,
+		"smtp_port", cfg.SMTPPort,
+		"smtp_from", cfg.SMTPFrom,
+	)
+
+	return cfg
 }
 
 func getEnv(key, fallback string) string {
