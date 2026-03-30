@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -39,11 +40,26 @@ func (h *FixedBillHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: creating fixed bill",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	bill, err := h.svc.Create(c.Request().Context(), input, householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to create fixed bill",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return fixedBillError(err)
 	}
 
+	slog.Info("handler: fixed bill created",
+		"fixed_bill_id", bill.ID,
+		"household_id", householdID,
+	)
 	return c.JSON(http.StatusCreated, toFixedBillResponse(bill))
 }
 
@@ -54,8 +70,18 @@ func (h *FixedBillHandler) List(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: listing fixed bills",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	bills, err := h.svc.List(c.Request().Context(), householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to list fixed bills",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return fixedBillError(err)
 	}
 
@@ -89,11 +115,25 @@ func (h *FixedBillHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: updating fixed bill",
+		"fixed_bill_id", id,
+		"user_id", userID,
+	)
+
 	bill, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
+		slog.Error("handler: failed to update fixed bill",
+			"error", err,
+			"fixed_bill_id", id,
+			"user_id", userID,
+		)
 		return fixedBillError(err)
 	}
 
+	slog.Info("handler: fixed bill updated",
+		"fixed_bill_id", bill.ID,
+	)
 	return c.JSON(http.StatusOK, toFixedBillResponse(bill))
 }
 
@@ -104,10 +144,23 @@ func (h *FixedBillHandler) Delete(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: deleting fixed bill",
+		"fixed_bill_id", id,
+		"user_id", userID,
+	)
+
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
+		slog.Error("handler: failed to delete fixed bill",
+			"error", err,
+			"fixed_bill_id", id,
+			"user_id", userID,
+		)
 		return fixedBillError(err)
 	}
 
+	slog.Info("handler: fixed bill deleted",
+		"fixed_bill_id", id,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 

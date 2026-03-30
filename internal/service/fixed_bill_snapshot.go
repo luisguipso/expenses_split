@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/lguilherme/contas/internal/domain"
 )
@@ -24,8 +25,17 @@ func NewFixedBillSnapshotService(
 }
 
 func (s *fixedBillSnapshotService) Update(ctx context.Context, id string, input domain.UpdateFixedBillSnapshotInput, userID string) (*domain.FixedBillSnapshot, error) {
+	slog.Info("service: updating fixed bill snapshot",
+		"snapshot_id", id,
+		"user_id", userID,
+	)
+
 	snap, err := s.snapshotRepo.FindByID(ctx, id)
 	if err != nil {
+		slog.Error("service: failed to find snapshot for update",
+			"error", err,
+			"snapshot_id", id,
+		)
 		return nil, err
 	}
 
@@ -46,9 +56,17 @@ func (s *fixedBillSnapshotService) Update(ctx context.Context, id string, input 
 	}
 
 	if err := s.snapshotRepo.Update(ctx, snap); err != nil {
+		slog.Error("service: failed to update snapshot",
+			"error", err,
+			"snapshot_id", id,
+		)
 		return nil, fmt.Errorf("update snapshot: %w", err)
 	}
 
+	slog.Info("service: fixed bill snapshot updated",
+		"snapshot_id", id,
+		"household_id", snap.HouseholdID,
+	)
 	return s.snapshotRepo.FindByID(ctx, id)
 }
 

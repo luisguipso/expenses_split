@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"io"
 
 	"github.com/lguilherme/contas/internal/domain"
 )
@@ -329,6 +330,7 @@ func (m *FixedBillSnapshotService) Update(ctx context.Context, id string, input 
 
 type ExpenseRepository struct {
 	CreateFn          func(ctx context.Context, expense *domain.Expense) error
+	CreateBatchFn     func(ctx context.Context, expenses []*domain.Expense) error
 	FindByIDFn        func(ctx context.Context, id string) (*domain.Expense, error)
 	ListByHouseholdFn func(ctx context.Context, householdID string, filter domain.ExpenseFilter) ([]domain.Expense, error)
 	UpdateFn          func(ctx context.Context, expense *domain.Expense) error
@@ -337,6 +339,9 @@ type ExpenseRepository struct {
 
 func (m *ExpenseRepository) Create(ctx context.Context, e *domain.Expense) error {
 	return m.CreateFn(ctx, e)
+}
+func (m *ExpenseRepository) CreateBatch(ctx context.Context, expenses []*domain.Expense) error {
+	return m.CreateBatchFn(ctx, expenses)
 }
 func (m *ExpenseRepository) FindByID(ctx context.Context, id string) (*domain.Expense, error) {
 	return m.FindByIDFn(ctx, id)
@@ -458,4 +463,32 @@ func (m *PasswordResetRepository) FindByToken(ctx context.Context, token string)
 
 func (m *PasswordResetRepository) MarkUsed(ctx context.Context, id string) error {
 	return m.MarkUsedFn(ctx, id)
+}
+
+// ImportService
+
+type ImportService struct {
+	ParseBillFn      func(ctx context.Context, filename string, content []byte, householdID, userID string) (*domain.ImportPreviewResponse, error)
+	ConfirmImportFn  func(ctx context.Context, input domain.ImportConfirmInput, householdID, userID string) ([]domain.Expense, error)
+}
+
+func (m *ImportService) ParseBill(ctx context.Context, filename string, content []byte, householdID, userID string) (*domain.ImportPreviewResponse, error) {
+	return m.ParseBillFn(ctx, filename, content, householdID, userID)
+}
+func (m *ImportService) ConfirmImport(ctx context.Context, input domain.ImportConfirmInput, householdID, userID string) ([]domain.Expense, error) {
+	return m.ConfirmImportFn(ctx, input, householdID, userID)
+}
+
+// BillParser
+
+type BillParser struct {
+	ParseFn    func(ctx context.Context, reader io.Reader) (*domain.ParsedBill, error)
+	SupportsFn func(content []byte) bool
+}
+
+func (m *BillParser) Parse(ctx context.Context, reader io.Reader) (*domain.ParsedBill, error) {
+	return m.ParseFn(ctx, reader)
+}
+func (m *BillParser) Supports(content []byte) bool {
+	return m.SupportsFn(content)
 }

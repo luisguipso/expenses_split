@@ -40,8 +40,22 @@ func (h *SummaryHandler) GetSummary(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid month")
 	}
 
+	slog.Info("handler: getting summary",
+		"household_id", householdID,
+		"user_id", userID,
+		"year", year,
+		"month", month,
+	)
+
 	summary, err := h.svc.Generate(c.Request().Context(), householdID, year, month, userID)
 	if err != nil {
+		slog.Error("handler: failed to get summary",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+			"year", year,
+			"month", month,
+		)
 		return summaryError(err)
 	}
 
@@ -55,8 +69,18 @@ func (h *SummaryHandler) GetDashboard(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: getting dashboard",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	dashboard, err := h.svc.GetDashboard(c.Request().Context(), householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to get dashboard",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return summaryError(err)
 	}
 
@@ -90,8 +114,24 @@ func (h *SummaryHandler) GetSummaryDetail(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid month")
 	}
 
+	slog.Info("handler: getting summary detail",
+		"household_id", householdID,
+		"user_id", userID,
+		"target_user_id", targetUserID,
+		"year", year,
+		"month", month,
+	)
+
 	detail, err := h.svc.GetUserDetail(c.Request().Context(), householdID, year, month, targetUserID, userID)
 	if err != nil {
+		slog.Error("handler: failed to get summary detail",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+			"target_user_id", targetUserID,
+			"year", year,
+			"month", month,
+		)
 		return summaryError(err)
 	}
 

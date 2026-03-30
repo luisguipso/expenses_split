@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,8 +19,16 @@ func NewSummaryRepository(db *pgxpool.Pool) domain.SummaryRepository {
 }
 
 func (r *summaryRepository) Upsert(ctx context.Context, s *domain.MonthlySummary) error {
+	slog.Info("repo: upserting monthly summary",
+		"household_id", s.HouseholdID,
+		"year", s.Year,
+		"month", s.Month,
+	)
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
+		slog.Error("repo: failed to begin tx for summary upsert",
+			"error", err,
+		)
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
@@ -34,12 +43,20 @@ func (r *summaryRepository) Upsert(ctx context.Context, s *domain.MonthlySummary
 		s.HouseholdID, s.Year, s.Month,
 	).Scan(&s.ID, &s.GeneratedAt)
 	if err != nil {
+		slog.Error("repo: failed to upsert summary",
+			"error", err,
+			"household_id", s.HouseholdID,
+		)
 		return fmt.Errorf("upsert summary: %w", err)
 	}
 
 	// Delete old items for this summary
 	_, err = tx.Exec(ctx, `DELETE FROM monthly_summary_items WHERE summary_id = $1`, s.ID)
 	if err != nil {
+		slog.Error("repo: failed to delete old summary items",
+			"error", err,
+			"summary_id", s.ID,
+		)
 		return fmt.Errorf("delete old items: %w", err)
 	}
 
@@ -62,6 +79,11 @@ func (r *summaryRepository) Upsert(ctx context.Context, s *domain.MonthlySummary
 }
 
 func (r *summaryRepository) FindByMonth(ctx context.Context, householdID string, year, month int) (*domain.MonthlySummary, error) {
+	slog.Debug("repo: fetching monthly summary",
+		"household_id", householdID,
+		"year", year,
+		"month", month,
+	)
 	s := &domain.MonthlySummary{}
 	err := r.db.QueryRow(ctx,
 		`SELECT id, household_id, year, month, generated_at
@@ -70,9 +92,18 @@ func (r *summaryRepository) FindByMonth(ctx context.Context, householdID string,
 		householdID, year, month,
 	).Scan(&s.ID, &s.HouseholdID, &s.Year, &s.Month, &s.GeneratedAt)
 	if err == pgx.ErrNoRows {
+		slog.Debug("repo: monthly summary not found",
+			"household_id", householdID,
+			"year", year,
+			"month", month,
+		)
 		return nil, domain.ErrSummaryNotFound
 	}
 	if err != nil {
+		slog.Error("repo: failed to fetch monthly summary",
+			"error", err,
+			"household_id", householdID,
+		)
 		return nil, fmt.Errorf("find summary: %w", err)
 	}
 

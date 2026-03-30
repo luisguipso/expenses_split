@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -16,6 +17,9 @@ func RegisterHealthRoutes(e *echo.Echo, health domain.HealthChecker) {
 
 		dbStatus := "ok"
 		if err := health.Ping(ctx); err != nil {
+			slog.Error("handler: health check database ping failed",
+				"error", err,
+			)
 			dbStatus = "error"
 		}
 

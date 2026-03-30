@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/lguilherme/contas/internal/domain"
@@ -18,6 +19,13 @@ func NewExpenseService(repo domain.ExpenseRepository, household domain.Household
 }
 
 func (s *expenseService) Create(ctx context.Context, input domain.CreateExpenseInput, householdID, userID string) (*domain.Expense, error) {
+	slog.Info("service: creating expense",
+		"household_id", householdID,
+		"user_id", userID,
+		"amount_cents", input.AmountCents,
+		"is_shared", input.IsShared,
+	)
+
 	if err := s.checkMembership(ctx, householdID, userID); err != nil {
 		return nil, err
 	}
@@ -38,12 +46,28 @@ func (s *expenseService) Create(ctx context.Context, input domain.CreateExpenseI
 		AssignedTo:  input.AssignedTo,
 	}
 	if err := s.repo.Create(ctx, e); err != nil {
+		slog.Error("service: failed to create expense",
+			"error", err,
+			"household_id", householdID,
+		)
 		return nil, err
 	}
+
+	slog.Info("service: expense created",
+		"expense_id", e.ID,
+		"household_id", householdID,
+	)
 	return e, nil
 }
 
 func (s *expenseService) List(ctx context.Context, householdID, userID string, filter domain.ExpenseFilter) ([]domain.Expense, error) {
+	slog.Debug("service: listing expenses",
+		"household_id", householdID,
+		"user_id", userID,
+		"year", filter.Year,
+		"month", filter.Month,
+	)
+
 	if err := s.checkMembership(ctx, householdID, userID); err != nil {
 		return nil, err
 	}
@@ -51,8 +75,17 @@ func (s *expenseService) List(ctx context.Context, householdID, userID string, f
 }
 
 func (s *expenseService) Update(ctx context.Context, id string, input domain.UpdateExpenseInput, userID string) (*domain.Expense, error) {
+	slog.Info("service: updating expense",
+		"expense_id", id,
+		"user_id", userID,
+	)
+
 	e, err := s.repo.FindByID(ctx, id)
 	if err != nil {
+		slog.Error("service: failed to find expense for update",
+			"error", err,
+			"expense_id", id,
+		)
 		return nil, err
 	}
 
@@ -68,15 +101,32 @@ func (s *expenseService) Update(ctx context.Context, id string, input domain.Upd
 	e.AssignedTo = input.AssignedTo
 
 	if err := s.repo.Update(ctx, e); err != nil {
+		slog.Error("service: failed to update expense",
+			"error", err,
+			"expense_id", id,
+		)
 		return nil, err
 	}
 
+	slog.Info("service: expense updated",
+		"expense_id", id,
+		"household_id", e.HouseholdID,
+	)
 	return s.repo.FindByID(ctx, id)
 }
 
 func (s *expenseService) Delete(ctx context.Context, id, userID string) error {
+	slog.Info("service: deleting expense",
+		"expense_id", id,
+		"user_id", userID,
+	)
+
 	e, err := s.repo.FindByID(ctx, id)
 	if err != nil {
+		slog.Error("service: failed to find expense for deletion",
+			"error", err,
+			"expense_id", id,
+		)
 		return err
 	}
 
@@ -84,7 +134,19 @@ func (s *expenseService) Delete(ctx context.Context, id, userID string) error {
 		return err
 	}
 
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		slog.Error("service: failed to delete expense",
+			"error", err,
+			"expense_id", id,
+		)
+		return err
+	}
+
+	slog.Info("service: expense deleted",
+		"expense_id", id,
+		"household_id", e.HouseholdID,
+	)
+	return nil
 }
 
 func (s *expenseService) checkMembership(ctx context.Context, householdID, userID string) error {

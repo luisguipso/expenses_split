@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -36,11 +37,26 @@ func (h *CategoryHandler) Create(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: creating category",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	cat, err := h.svc.Create(c.Request().Context(), input, householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to create category",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return categoryError(err)
 	}
 
+	slog.Info("handler: category created",
+		"category_id", cat.ID,
+		"household_id", householdID,
+	)
 	return c.JSON(http.StatusCreated, toCategoryResponse(cat))
 }
 
@@ -51,8 +67,18 @@ func (h *CategoryHandler) List(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: listing categories",
+		"household_id", householdID,
+		"user_id", userID,
+	)
+
 	categories, err := h.svc.List(c.Request().Context(), householdID, userID)
 	if err != nil {
+		slog.Error("handler: failed to list categories",
+			"error", err,
+			"household_id", householdID,
+			"user_id", userID,
+		)
 		return categoryError(err)
 	}
 
@@ -83,11 +109,25 @@ func (h *CategoryHandler) Update(c echo.Context) error {
 	if err != nil {
 		return err
 	}
+
+	slog.Info("handler: updating category",
+		"category_id", id,
+		"user_id", userID,
+	)
+
 	cat, err := h.svc.Update(c.Request().Context(), id, input, userID)
 	if err != nil {
+		slog.Error("handler: failed to update category",
+			"error", err,
+			"category_id", id,
+			"user_id", userID,
+		)
 		return categoryError(err)
 	}
 
+	slog.Info("handler: category updated",
+		"category_id", cat.ID,
+	)
 	return c.JSON(http.StatusOK, toCategoryResponse(cat))
 }
 
@@ -98,10 +138,23 @@ func (h *CategoryHandler) Delete(c echo.Context) error {
 		return err
 	}
 
+	slog.Info("handler: deleting category",
+		"category_id", id,
+		"user_id", userID,
+	)
+
 	if err := h.svc.Delete(c.Request().Context(), id, userID); err != nil {
+		slog.Error("handler: failed to delete category",
+			"error", err,
+			"category_id", id,
+			"user_id", userID,
+		)
 		return categoryError(err)
 	}
 
+	slog.Info("handler: category deleted",
+		"category_id", id,
+	)
 	return c.NoContent(http.StatusNoContent)
 }
 
