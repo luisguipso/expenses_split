@@ -40,7 +40,7 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		return nil, err
 	}
 
-	breakdown, totalShared, bills, err := s.calculate(ctx, householdID, year, month)
+	breakdown, totalShared, bills, expenses, err := s.calculate(ctx, householdID, year, month)
 	if err != nil {
 		return nil, err
 	}
@@ -62,6 +62,33 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 			IsFrozen:     b.IsFrozen,
 		}
 	}
+
+	// Aggregate spending by category
+	categoryMap := make(map[string]int64)
+	for _, e := range expenses {
+		name := e.CategoryName
+		if name == "" {
+			name = "Sem categoria"
+		}
+		categoryMap[name] += e.AmountCents
+	}
+	for _, b := range bills {
+		name := b.CategoryName
+		if name == "" {
+			name = "Sem categoria"
+		}
+		categoryMap[name] += b.AmountCents
+	}
+	categoryTotals := make([]domain.CategoryBreakdownItem, 0, len(categoryMap))
+	for name, cents := range categoryMap {
+		categoryTotals = append(categoryTotals, domain.CategoryBreakdownItem{
+			CategoryName: name,
+			TotalCents:   cents,
+		})
+	}
+	sort.Slice(categoryTotals, func(i, j int) bool {
+		return categoryTotals[i].TotalCents > categoryTotals[j].TotalCents
+	})
 
 	// Persist the summary
 	summary := &domain.MonthlySummary{
@@ -99,6 +126,7 @@ func (s *summaryService) Generate(ctx context.Context, householdID string, year,
 		Items:            breakdown,
 		Settlements:      minimizeTransfers(breakdown),
 		FixedBills:       fixedBillResponses,
+		CategoryTotals:   categoryTotals,
 	}, nil
 }
 
@@ -148,7 +176,7 @@ func (s *summaryService) GetDashboard(ctx context.Context, householdID, userID s
 		}
 	}
 
-	breakdown, _, _, err := s.calculate(ctx, householdID, year, month)
+	breakdown, _, _, _, err := s.calculate(ctx, householdID, year, month)
 	if err != nil && !errors.Is(err, domain.ErrNoMembersWithSalary) {
 		return nil, err
 	}
@@ -308,11 +336,11 @@ func (s *summaryService) resolveFixedBills(ctx context.Context, householdID stri
 
 // calculate computes the proportional split for a given month.
 // Returns per-member breakdown and total shared amount.
-func (s *summaryService) calculate(ctx context.Context, householdID string, year, month int) ([]domain.SummaryItemResponse, int64, []resolvedBill, error) {
+func (s *summaryService) calculate(ctx context.Context, householdID string, year, month int) ([]domain.SummaryItemResponse, int64, []resolvedBill, []domain.Expense, error) {
 	// 1. Get members with salaries
 	members, err := s.householdRepo.ListMembers(ctx, householdID)
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("list members: %w", err)
+		return nil, 0, nil, nil, fmt.Errorf("list members: %w", err)
 	}
 
 	var totalSalary int64
@@ -320,7 +348,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		totalSalary += m.SalaryCents
 	}
 	if totalSalary == 0 {
-		return nil, 0, nil, domain.ErrNoMembersWithSalary
+		return nil, 0, nil, nil, domain.ErrNoMembersWithSalary
 	}
 
 	// 2. Get expenses for this month
@@ -328,13 +356,13 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		Year: year, Month: month,
 	})
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("list expenses: %w", err)
+		return nil, 0, nil, nil, fmt.Errorf("list expenses: %w", err)
 	}
 
 	// 3. Resolve fixed bills (snapshot or live)
 	bills, err := s.resolveFixedBills(ctx, householdID, year, month)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, nil, err
 	}
 
 	// 4. Calculate totals
@@ -397,7 +425,7 @@ func (s *summaryService) calculate(ctx context.Context, householdID string, year
 		}
 	}
 
-	return breakdown, totalShared, bills, nil
+	return breakdown, totalShared, bills, expenses, nil
 }
 
 // minimizeTransfers computes the minimum number of transfers to settle all balances.

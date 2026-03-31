@@ -7,6 +7,7 @@ import Spinner from '../components/Spinner';
 import ErrorAlert from '../components/ErrorAlert';
 import SummaryDetailModal from '../components/SummaryDetailModal';
 import SnapshotEditModal from '../components/SnapshotEditModal';
+import CategoryDistributionChart from '../components/CategoryDistributionChart';
 
 function formatCurrency(cents: number): string {
   return ((cents ?? 0) / 100).toLocaleString('pt-BR', {
@@ -161,6 +162,9 @@ export default function Summary() {
               </div>
             );
           })()}
+
+          {/* Category distribution chart */}
+          <CategoryDistributionChart data={summary.category_totals} />
 
           {/* Fixed Bills */}
           {summary.fixed_bills && summary.fixed_bills.length > 0 && (

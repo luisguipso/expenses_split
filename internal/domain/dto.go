@@ -229,6 +229,11 @@ type FixedBillSnapshotResponse struct {
 
 // Summary DTOs
 
+type CategoryBreakdownItem struct {
+	CategoryName string `json:"category_name"`
+	TotalCents   int64  `json:"total_cents"`
+}
+
 type SettlementTransfer struct {
 	FromUserID   string `json:"from_user_id"`
 	FromUserName string `json:"from_user_name"`
@@ -260,6 +265,7 @@ type SummaryResponse struct {
 	Items            []SummaryItemResponse       `json:"items"`
 	Settlements      []SettlementTransfer        `json:"settlements"`
 	FixedBills       []FixedBillSnapshotResponse `json:"fixed_bills"`
+	CategoryTotals   []CategoryBreakdownItem     `json:"category_totals"`
 }
 
 type SummaryDetailItem struct {
