@@ -23,9 +23,9 @@ type TokenClaims struct {
 }
 
 type UserResponse struct {
-	ID    interface{} `json:"id"`
-	Name  string      `json:"name"`
-	Email string      `json:"email"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 type AuthResponse struct {
@@ -46,6 +46,10 @@ type TokenResponse struct {
 type MeResponse struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
+}
+
+type MessageResponse struct {
+	Message string `json:"message"`
 }
 
 type HealthResponse struct {
@@ -291,14 +295,14 @@ type SummaryDetailResponse struct {
 }
 
 type DashboardResponse struct {
-	HouseholdName      string                `json:"household_name"`
-	Year               int                   `json:"year"`
-	Month              int                   `json:"month"`
-	TotalExpenses      int64                 `json:"total_expenses"`
-	TotalFixedBills    int64                 `json:"total_fixed_bills"`
-	TotalShared        int64                 `json:"total_shared"`
-	TotalPersonal      int64                 `json:"total_personal"`
-	ExpenseCount       int                   `json:"expense_count"`
-	FixedBillCount     int                   `json:"fixed_bill_count"`
-	MemberBreakdown    []SummaryItemResponse `json:"member_breakdown"`
+	HouseholdName   string                `json:"household_name"`
+	Year            int                   `json:"year"`
+	Month           int                   `json:"month"`
+	TotalExpenses   int64                 `json:"total_expenses"`
+	TotalFixedBills int64                 `json:"total_fixed_bills"`
+	TotalShared     int64                 `json:"total_shared"`
+	TotalPersonal   int64                 `json:"total_personal"`
+	ExpenseCount    int                   `json:"expense_count"`
+	FixedBillCount  int                   `json:"fixed_bill_count"`
+	MemberBreakdown []SummaryItemResponse `json:"member_breakdown"`
 }

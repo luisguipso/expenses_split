@@ -13,6 +13,10 @@ type AuthHandler struct {
 	auth domain.AuthService
 }
 
+type refreshInput struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 func NewAuthHandler(auth domain.AuthService) *AuthHandler {
 	return &AuthHandler{auth: auth}
 }
@@ -86,18 +90,16 @@ func (h *AuthHandler) Login(c echo.Context) error {
 }
 
 func (h *AuthHandler) Refresh(c echo.Context) error {
-	var body struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-	if err := c.Bind(&body); err != nil {
+	var input refreshInput
+	if err := c.Bind(&input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	if body.RefreshToken == "" {
+	if input.RefreshToken == "" {
 		return echo.NewHTTPError(http.StatusBadRequest, "refresh_token is required")
 	}
 
-	tokens, err := h.auth.RefreshToken(body.RefreshToken)
+	tokens, err := h.auth.RefreshToken(input.RefreshToken)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired refresh token")
 	}
@@ -131,10 +133,10 @@ func (h *AuthHandler) VerifyEmail(c echo.Context) error {
 	user, tokens, err := h.auth.VerifyEmail(c.Request().Context(), input)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidVerificationCode) {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid verification code")
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid_code")
 		}
 		if errors.Is(err, domain.ErrVerificationExpired) {
-			return echo.NewHTTPError(http.StatusBadRequest, "verification code expired")
+			return echo.NewHTTPError(http.StatusBadRequest, "code_expired")
 		}
 		slog.Error("verify email failed", "error", err, "email", input.Email)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to verify email")
@@ -167,7 +169,7 @@ func (h *AuthHandler) ResendCode(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to resend code")
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "verification code sent"})
+	return c.JSON(http.StatusOK, domain.MessageResponse{Message: "verification code sent"})
 }
 
 func (h *AuthHandler) ForgotPassword(c echo.Context) error {
@@ -189,7 +191,7 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to process request")
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "if the email exists, a reset link has been sent"})
+	return c.JSON(http.StatusOK, domain.MessageResponse{Message: "if the email exists, a reset link has been sent"})
 }
 
 func (h *AuthHandler) ResetPassword(c echo.Context) error {
@@ -208,19 +210,19 @@ func (h *AuthHandler) ResetPassword(c echo.Context) error {
 
 	if err := h.auth.ResetPassword(c.Request().Context(), input); err != nil {
 		if errors.Is(err, domain.ErrResetTokenInvalid) {
-			return echo.NewHTTPError(http.StatusBadRequest, "invalid or already used reset token")
+			return echo.NewHTTPError(http.StatusBadRequest, domain.ErrResetTokenInvalid.Error())
 		}
 		if errors.Is(err, domain.ErrResetTokenExpired) {
-			return echo.NewHTTPError(http.StatusBadRequest, "reset token has expired")
+			return echo.NewHTTPError(http.StatusBadRequest, domain.ErrResetTokenExpired.Error())
 		}
 		if errors.Is(err, domain.ErrPasswordSameAsOld) {
-			return echo.NewHTTPError(http.StatusBadRequest, "new password must differ from current password")
+			return echo.NewHTTPError(http.StatusBadRequest, domain.ErrPasswordSameAsOld.Error())
 		}
 		slog.Error("reset password failed", "error", err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to reset password")
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "password reset successfully"})
+	return c.JSON(http.StatusOK, domain.MessageResponse{Message: "password reset successfully"})
 }
 
 func RegisterAuthRoutes(e *echo.Echo, h *AuthHandler, authMiddleware echo.MiddlewareFunc) {

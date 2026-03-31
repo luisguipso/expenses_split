@@ -1,11 +1,17 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api from '../lib/api';
+import type { AuthResponse, AuthUser, MeResponse } from './types';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
+type AuthErrorResponse = {
+  error?: string;
+};
+
+type AuthRequestError = {
+  response?: {
+    status?: number;
+    data?: AuthErrorResponse;
+  };
+};
 
 export class EmailNotVerifiedError extends Error {
   constructor() {
@@ -15,7 +21,7 @@ export class EmailNotVerifiedError extends Error {
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -28,7 +34,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(
     localStorage.getItem('token')
   );
@@ -37,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (token) {
       api
-        .get('/auth/me')
+        .get<MeResponse>('/auth/me')
         .then((res) => {
           setUser({
             id: res.data.user_id,
@@ -59,17 +65,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      const res = await api.post('/auth/login', { email, password });
+      const res = await api.post<AuthResponse>('/auth/login', { email, password });
       const { tokens, user: userData } = res.data;
       localStorage.setItem('token', tokens.access_token);
       localStorage.setItem('refresh_token', tokens.refresh_token);
       setToken(tokens.access_token);
       setUser(userData);
     } catch (error: unknown) {
+      const authError = error as AuthRequestError;
       if (
-        typeof error === 'object' && error !== null && 'response' in error &&
-        (error as { response?: { status?: number; data?: { error?: string } } }).response?.status === 403 &&
-        (error as { response?: { status?: number; data?: { error?: string } } }).response?.data?.error === 'email_not_verified'
+        authError.response?.status === 403 &&
+        authError.response?.data?.error === 'email_not_verified'
       ) {
         throw new EmailNotVerifiedError();
       }
@@ -87,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const verifyEmail = async (email: string, code: string) => {
-    const res = await api.post('/auth/verify-email', { email, code });
+    const res = await api.post<AuthResponse>('/auth/verify-email', { email, code });
     const { tokens, user: userData } = res.data;
     localStorage.setItem('token', tokens.access_token);
     localStorage.setItem('refresh_token', tokens.refresh_token);

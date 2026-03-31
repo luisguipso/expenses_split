@@ -3,6 +3,16 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import api from '../lib/api';
 import ErrorAlert from '../components/ErrorAlert';
 
+interface ApiErrorResponse {
+  error?: string;
+}
+
+interface ApiRequestError {
+  response?: {
+    data?: ApiErrorResponse;
+  };
+}
+
 export default function PasswordRecover() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -119,8 +129,7 @@ function ResetForm({ token }: { token: string }) {
         state: { message: 'Senha redefinida com sucesso! Faça login com sua nova senha.' },
       });
     } catch (err: unknown) {
-      const response = (err as { response?: { data?: { error?: string } } })?.response;
-      const errorMsg = response?.data?.error;
+      const errorMsg = (err as ApiRequestError).response?.data?.error;
       if (errorMsg?.includes('same') || errorMsg?.includes('differ')) {
         setError('A nova senha não pode ser igual à senha atual.');
       } else if (errorMsg?.includes('expired')) {
