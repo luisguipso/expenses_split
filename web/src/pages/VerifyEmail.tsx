@@ -3,11 +3,24 @@ import { useAuth } from '../lib/auth';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ErrorAlert from '../components/ErrorAlert';
 
+interface VerifyEmailLocationState {
+  email?: string;
+}
+
+interface VerifyEmailRequestError {
+  response?: {
+    status?: number;
+    data?: {
+      error?: string;
+    };
+  };
+}
+
 export default function VerifyEmail() {
   const { verifyEmail, resendCode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const email = (location.state as { email?: string })?.email;
+  const email = (location.state as VerifyEmailLocationState | null)?.email;
 
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -50,8 +63,9 @@ export default function VerifyEmail() {
       await verifyEmail(email, code);
       navigate('/');
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } }).response?.status;
-      const serverError = (err as { response?: { data?: { error?: string } } }).response?.data?.error;
+      const error = err as VerifyEmailRequestError;
+      const status = error.response?.status;
+      const serverError = error.response?.data?.error;
       if (status === 400 && serverError === 'invalid_code') {
         setError('Código inválido. Verifique e tente novamente.');
       } else if (status === 400 && serverError === 'code_expired') {

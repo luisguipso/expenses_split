@@ -46,3 +46,25 @@ export interface Expense {
   paid_by_name?: string;
   assigned_to?: string;
 }
+
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface TokenPair {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  tokens: TokenPair;
+}
+
+export interface MeResponse {
+  user_id: string;
+  email: string;
+}
